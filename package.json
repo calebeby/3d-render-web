@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build-rust": "wasm-pack build --target web --dev",
+    "build-rust": "cd rust && wasm-pack build --target web --dev",
     "preview": "vite preview"
   },
   "devDependencies": {
