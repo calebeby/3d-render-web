@@ -4,13 +4,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build-rust": "wasm-pack build --target web --dev",
+    "build-rust": "cd rust && wasm-pack build --target web --dev",
     "preview": "vite preview"
   },
   "devDependencies": {
-    "prettier": "^2.5.1",
-    "typescript": "^4.4.4",
-    "vite": "^2.7.2"
+    "prettier": "^2.6.0",
+    "typescript": "^4.6.2",
+    "vite": "^2.8.6"
   },
   "prettier": {
     "trailingComma": "all"
