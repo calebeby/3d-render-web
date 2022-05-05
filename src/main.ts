@@ -6,23 +6,7 @@ await wasm.default();
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 const canvas = document.createElement("canvas");
-const width = 600;
-const height = 600;
-canvas.width = width;
-canvas.height = height;
-const createSlider = () => {
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.min = "-10";
-  slider.max = "10";
-  slider.step = "0.01";
-  return slider;
-};
-const xSlider = createSlider();
-const ySlider = createSlider();
-const zSlider = createSlider();
-xSlider.value = "-10";
-app.append(canvas, xSlider, ySlider, zSlider);
+app.append(canvas);
 
 const ctx = canvas.getContext("2d")!;
 
@@ -60,17 +44,12 @@ const unpackData = (data: Float64Array) => {
   return polygons;
 };
 
-const render = () => {
-  const cameraXOffset = xSlider.valueAsNumber;
-  const cameraYOffset = ySlider.valueAsNumber;
-  const cameraZOffset = zSlider.valueAsNumber;
-  const data = wasm.get_points(
-    width,
-    height,
-    cameraXOffset,
-    cameraYOffset,
-    cameraZOffset,
-  );
+const render = (mouseX: number, mouseY: number, mouseDown: boolean) => {
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  canvas.width = width;
+  canvas.height = height;
+  const data = wasm.get_points(ctx, width, height, mouseX, mouseY, mouseDown);
 
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, width, height);
@@ -81,15 +60,24 @@ const render = () => {
     ctx.fillStyle = polygon.color;
     ctx.beginPath();
     for (const point of polygon.points) {
-      ctx.lineTo(point[0] + canvas.width / 2, point[1] + canvas.width / 2);
+      ctx.lineTo(point[0] + width / 2, point[1] + height / 2);
     }
     ctx.closePath();
     ctx.fill();
   }
 };
 
-render();
+render(0, 0, false);
 
-xSlider.addEventListener("input", render);
-ySlider.addEventListener("input", render);
-zSlider.addEventListener("input", render);
+const handleMouseEvent = (event: MouseEvent) => {
+  const x = event.offsetX;
+  const y = event.offsetY;
+  render(x, y, event.buttons === 1);
+};
+canvas.addEventListener("mousedown", handleMouseEvent);
+canvas.addEventListener("mouseup", handleMouseEvent);
+canvas.addEventListener("mousemove", handleMouseEvent);
+
+window.addEventListener("resize", () => {
+  render(0, 0, false);
+});

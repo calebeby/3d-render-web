@@ -1,14 +1,112 @@
+mod vector3d;
+use crate::vector3d::Vector3D;
 use wasm_bindgen::prelude::*;
-use web_sys::console;
+
+static mut CURSOR_START_POSITION: (i32, i32) = (0, 0);
+static mut CURSOR_DOWN: bool = false;
+static mut ORBIT_START_CAMERA: Option<Camera> = None;
+
+fn cursor_location_to_3d(width: i32, height: i32, (cursor_x, cursor_y): (i32, i32)) -> Vector3D {
+    // Assuming: camera is on the z-axis pointing towards the origin, with y as the up direction
+    let min_viewport_dimension = std::cmp::min(width, height);
+    let sphere_radius = 0.4 * min_viewport_dimension as f64;
+
+    // x and y relative to the center of the canvas
+    let x = cursor_x as f64 - (width as f64 / 2.0);
+    let y = cursor_y as f64 - (height as f64 / 2.0);
+    // Sphere: z^2 + x^2 + y^2 = radius^2
+    let z_eq_sq = sphere_radius * sphere_radius - x * x - y * y;
+    let z = if z_eq_sq >= 0.0 { z_eq_sq.sqrt() } else { 0.0 };
+    Vector3D { x, y, z }
+}
+
+fn compute_camera_position_from_orbit(
+    width: i32,
+    height: i32,
+    initial_camera: Camera,
+    orbit_start_cursor: (i32, i32),
+    orbit_end_cursor: (i32, i32),
+) -> Camera {
+    let start_cursor_vector = cursor_location_to_3d(width, height, orbit_start_cursor);
+    let end_cursor_vector = cursor_location_to_3d(width, height, orbit_end_cursor);
+
+    if start_cursor_vector == end_cursor_vector {
+        return initial_camera;
+    }
+
+    let rotation_axis = start_cursor_vector
+        .cross(&end_cursor_vector)
+        .to_unit_vector();
+    let rotation_d_theta = start_cursor_vector.dot(&end_cursor_vector)
+        / (start_cursor_vector.magnitude() * end_cursor_vector.magnitude());
+
+    let rotation_vector = &rotation_axis * rotation_d_theta;
+
+    Camera {
+        u_up: initial_camera.u_up.rotate_about_origin(rotation_vector),
+        u_right: initial_camera.u_right.rotate_about_origin(rotation_vector),
+        plane: Plane {
+            point: initial_camera
+                .plane
+                .point
+                .rotate_about_origin(rotation_vector),
+            normal: initial_camera
+                .plane
+                .normal
+                .rotate_about_origin(rotation_vector),
+        },
+        point: initial_camera.point.rotate_about_origin(rotation_vector),
+    }
+}
 
 #[wasm_bindgen]
 pub fn get_points(
-    _width: f64,
-    _height: f64,
-    camera_x_offset: f64,
-    camera_y_offset: f64,
-    camera_z_offset: f64,
+    canvas_ctx: &web_sys::CanvasRenderingContext2d,
+    width: i32,
+    height: i32,
+    cursor_x: i32,
+    cursor_y: i32,
+    cursor_down: bool,
 ) -> Vec<f64> {
+    let mut camera: Camera = (unsafe { ORBIT_START_CAMERA }).unwrap_or(Camera::new_towards(
+        Vector3D::new(4.0, 4.0, 4.0),
+        Vector3D::zero(),
+    ));
+
+    unsafe {
+        if !CURSOR_DOWN && cursor_down {
+            // Just pressed cursor
+            CURSOR_DOWN = true;
+            CURSOR_START_POSITION = (cursor_x, cursor_y);
+            ORBIT_START_CAMERA = Some(compute_camera_position_from_orbit(
+                width,
+                height,
+                camera,
+                CURSOR_START_POSITION,
+                (cursor_x, cursor_y),
+            ));
+        }
+        if CURSOR_DOWN && !cursor_down {
+            // Just released cursor
+            CURSOR_DOWN = false;
+            ORBIT_START_CAMERA = Some(compute_camera_position_from_orbit(
+                width,
+                height,
+                camera,
+                CURSOR_START_POSITION,
+                (cursor_x, cursor_y),
+            ));
+        }
+        if CURSOR_DOWN {
+            camera = compute_camera_position_from_orbit(
+                width,
+                height,
+                camera,
+                CURSOR_START_POSITION,
+                (cursor_x, cursor_y),
+            )
+        }
+    }
     let mut out = Vec::<f64>::with_capacity(100);
     let front_left_top = Vector3D::new(-1.0, -1.0, 1.0);
     let front_right_top = Vector3D::new(-1.0, 1.0, 1.0);
@@ -18,10 +116,6 @@ pub fn get_points(
     let back_right_top = Vector3D::new(1.0, 1.0, 1.0);
     let back_left_bottom = Vector3D::new(1.0, -1.0, -1.0);
     let back_right_bottom = Vector3D::new(1.0, 1.0, -1.0);
-    let camera = Camera::new_towards(
-        Vector3D::new(camera_x_offset, camera_y_offset, camera_z_offset),
-        front_left_top,
-    );
 
     let red = Color::new(255, 0, 0);
     let green = Color::new(0, 255, 0);
@@ -148,7 +242,7 @@ struct SeenFace {
     distance_from_camera: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct Camera {
     plane: Plane,
     u_right: Vector3D,
@@ -158,7 +252,7 @@ struct Camera {
 
 impl Camera {
     fn new_towards(camera_point: Vector3D, target: Vector3D) -> Camera {
-        let camera_to_target = &target - &camera_point;
+        let camera_to_target = target - &camera_point;
         let u_camera_to_target = camera_to_target.to_unit_vector();
         let u_z = Vector3D::new(0.0, 0.0, 1.0);
         let u_right = u_camera_to_target.cross(&u_z);
@@ -168,8 +262,8 @@ impl Camera {
                 normal: u_camera_to_target,
                 point: &camera_point + &u_camera_to_target,
             },
-            u_right: &u_right * 600.0,
-            u_up: &u_up * 600.0,
+            u_right,
+            u_up,
             point: camera_point,
         }
     }
@@ -182,8 +276,9 @@ impl Camera {
         }
         let camera_plane_intersection = self.plane.intersection(&ray_to_camera);
         let point_in_camera_plane = &camera_plane_intersection - &self.point;
-        let point_x_in_camera = point_in_camera_plane.dot(&self.u_right);
-        let point_y_in_camera = point_in_camera_plane.dot(&-&self.u_up);
+        let scale = 500.0;
+        let point_x_in_camera = scale * point_in_camera_plane.dot(&self.u_right);
+        let point_y_in_camera = scale * point_in_camera_plane.dot(&-&self.u_up);
 
         Some((point_x_in_camera, point_y_in_camera))
     }
@@ -210,131 +305,13 @@ struct Face<'a> {
     color: Color,
 }
 
-#[derive(Copy, Clone)]
-struct Vector3D {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl Vector3D {
-    fn new(x: f64, y: f64, z: f64) -> Vector3D {
-        Vector3D { x, y, z }
-    }
-    fn dot(&self, other: &Vector3D) -> f64 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-    fn cross(&self, other: &Vector3D) -> Vector3D {
-        Vector3D {
-            x: self.y * other.z - self.z * other.y,
-            y: self.z * other.x - self.x * other.z,
-            z: self.x * other.y - self.y * other.x,
-        }
-    }
-    fn ray_to(&self, other: &Vector3D) -> Ray {
-        Ray {
-            point: *self,
-            direction: other - self,
-        }
-    }
-    fn magnitude(&self) -> f64 {
-        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
-    }
-    fn to_unit_vector(&self) -> Vector3D {
-        self / self.magnitude()
-    }
-    /// The magnitude of the rotation vector is the angle of rotation (radians)
-    fn rotate_about_origin(&self, rotation_vector: Vector3D) -> Vector3D {
-        let rotation_amount = rotation_vector.magnitude();
-        if rotation_amount == 0.0 {
-            return *self;
-        }
-        let rotation_q_imaginary =
-            &rotation_vector.to_unit_vector() * (rotation_amount / 2.0).sin();
-        let q = Quaternion::new(
-            (rotation_amount / 2.0).cos(),
-            rotation_q_imaginary.x,
-            rotation_q_imaginary.y,
-            rotation_q_imaginary.z,
-        );
-        let result_quaternion = &(&q * &Quaternion::from_vector(self)) * &q.conjugate();
-        result_quaternion.to_vector()
-    }
-}
-
-impl std::fmt::Debug for Vector3D {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Vector3D ({}, {}, {})", self.x, self.y, self.z)
-    }
-}
-
-impl std::ops::Sub<&Vector3D> for &Vector3D {
-    type Output = Vector3D;
-
-    fn sub(self, rhs: &Vector3D) -> Vector3D {
-        Vector3D {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-            z: self.z - rhs.z,
-        }
-    }
-}
-
-impl std::ops::Add<&Vector3D> for &Vector3D {
-    type Output = Vector3D;
-
-    fn add(self, rhs: &Vector3D) -> Vector3D {
-        Vector3D {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z,
-        }
-    }
-}
-
-impl std::ops::Mul<f64> for &Vector3D {
-    type Output = Vector3D;
-
-    fn mul(self, rhs: f64) -> Vector3D {
-        Vector3D {
-            x: self.x * rhs,
-            y: self.y * rhs,
-            z: self.z * rhs,
-        }
-    }
-}
-
-impl std::ops::Neg for &Vector3D {
-    type Output = Vector3D;
-
-    fn neg(self) -> Vector3D {
-        Vector3D {
-            x: -self.x,
-            y: -self.y,
-            z: -self.z,
-        }
-    }
-}
-
-impl std::ops::Div<f64> for &Vector3D {
-    type Output = Vector3D;
-
-    fn div(self, rhs: f64) -> Vector3D {
-        Vector3D {
-            x: self.x / rhs,
-            y: self.y / rhs,
-            z: self.z / rhs,
-        }
-    }
-}
-
 #[derive(Debug)]
-struct Ray {
+pub struct Ray {
     point: Vector3D,
     direction: Vector3D,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct Plane {
     point: Vector3D,
     normal: Vector3D,

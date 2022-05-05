@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run build-rust && tsc && vite build",
     "build-rust": "cd rust && wasm-pack build --target web --dev",
     "preview": "vite preview"
   },
