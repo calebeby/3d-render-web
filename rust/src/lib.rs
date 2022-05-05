@@ -1,6 +1,7 @@
 mod vector3d;
 use crate::vector3d::Vector3D;
 use wasm_bindgen::prelude::*;
+use web_sys::console;
 
 static mut CURSOR_START_POSITION: (i32, i32) = (0, 0);
 static mut CURSOR_DOWN: bool = false;
@@ -60,14 +61,14 @@ fn compute_camera_position_from_orbit(
 }
 
 #[wasm_bindgen]
-pub fn get_points(
+pub fn render(
     canvas_ctx: &web_sys::CanvasRenderingContext2d,
     width: i32,
     height: i32,
     cursor_x: i32,
     cursor_y: i32,
     cursor_down: bool,
-) -> Vec<f64> {
+) {
     let mut camera: Camera = (unsafe { ORBIT_START_CAMERA }).unwrap_or(Camera::new_towards(
         Vector3D::new(4.0, 4.0, 4.0),
         Vector3D::zero(),
@@ -107,7 +108,6 @@ pub fn get_points(
             )
         }
     }
-    let mut out = Vec::<f64>::with_capacity(100);
     let front_left_top = Vector3D::new(-1.0, -1.0, 1.0);
     let front_right_top = Vector3D::new(-1.0, 1.0, 1.0);
     let front_left_bottom = Vector3D::new(-1.0, -1.0, -1.0);
@@ -202,25 +202,21 @@ pub fn get_points(
             .unwrap()
     });
 
-    for face in seen_faces {
-        serialize_polygon(face.points, &face.color, &mut out);
-    }
+    canvas_ctx.set_fill_style(&"black".into());
+    canvas_ctx.fill_rect(0.0, 0.0, width.into(), height.into());
 
-    out
-}
-
-fn serialize_polygon(polygon: Vec<(f64, f64)>, color: &Color, out: &mut Vec<f64>) {
-    // 2D Polygons are returned, in the format:
-    // ...(numPoints, color, ...(pointX, pointY))
-    out.push(polygon.len() as f64);
-    out.push(color.to_int().into());
-    for pt in polygon {
-        out.push(pt.0);
-        out.push(pt.1);
+    for polygon in seen_faces {
+        canvas_ctx.set_fill_style(&polygon.color.to_hex_str().into());
+        canvas_ctx.begin_path();
+        for point in polygon.points {
+            canvas_ctx.line_to(point.0 + width as f64 / 2.0, point.1 + height as f64 / 2.0);
+        }
+        canvas_ctx.close_path();
+        canvas_ctx.fill();
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Color {
     r: u8,
     g: u8,
@@ -231,8 +227,8 @@ impl Color {
     fn new(r: u8, g: u8, b: u8) -> Color {
         Color { r, g, b }
     }
-    fn to_int(&self) -> u32 {
-        ((self.r as u32) << 16) + ((self.g as u32) << 8) + (self.b as u32)
+    fn to_hex_str(&self) -> String {
+        format!("#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
     }
 }
 
