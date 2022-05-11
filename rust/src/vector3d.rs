@@ -1,4 +1,4 @@
-use crate::Quaternion;
+use crate::quaternion::Quaternion;
 use crate::Ray;
 
 #[derive(Copy, Clone)]
@@ -65,6 +65,28 @@ impl Vector3D {
         let result_quaternion = &(&q * &Quaternion::from_vector(self)) * &q.conjugate();
         result_quaternion.to_vector()
     }
+
+    pub fn rotate_about_axis(
+        &self,
+        rotation_vector: Vector3D,
+        rotation_axis_position: Vector3D,
+    ) -> Vector3D {
+        // Move the vector so the rotation axis is at the origin
+        let rebased_vector = self - rotation_axis_position;
+        let rotated_vector = rebased_vector.rotate_about_origin(rotation_vector);
+        // Move the vector back
+        &rotated_vector + &rotation_axis_position
+    }
+
+    pub fn approx_equals(&self, other: &Vector3D) -> bool {
+        approx_equals(self.x, other.x)
+            && approx_equals(self.y, other.y)
+            && approx_equals(self.z, other.z)
+    }
+}
+
+fn approx_equals(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-3
 }
 
 impl std::fmt::Debug for Vector3D {

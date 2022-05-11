@@ -1,5 +1,8 @@
+mod polyhedron;
+mod quaternion;
 mod vector3d;
 use crate::vector3d::Vector3D;
+use polyhedron::{Face, Polyhedron};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -108,90 +111,32 @@ pub fn render(
             )
         }
     }
-    let front_left_top = Vector3D::new(-1.0, -1.0, 1.0);
-    let front_right_top = Vector3D::new(-1.0, 1.0, 1.0);
-    let front_left_bottom = Vector3D::new(-1.0, -1.0, -1.0);
-    let front_right_bottom = Vector3D::new(-1.0, 1.0, -1.0);
-    let back_left_top = Vector3D::new(1.0, -1.0, 1.0);
-    let back_right_top = Vector3D::new(1.0, 1.0, 1.0);
-    let back_left_bottom = Vector3D::new(1.0, -1.0, -1.0);
-    let back_right_bottom = Vector3D::new(1.0, 1.0, -1.0);
 
-    let red = Color::new(255, 0, 0);
-    let green = Color::new(0, 255, 0);
-    let blue = Color::new(0, 0, 255);
-    let yellow = Color::new(255, 255, 0);
-    let purple = Color::new(255, 0, 255);
-    let cyan = Color::new(0, 255, 255);
+    // let tetrahedron = Polyhedron::generate(3, 3);
+    // let cube = Polyhedron::generate(4, 3);
+    // let octahedron = Polyhedron::generate(3, 4);
+    // let dodecahedron = Polyhedron::generate(5, 3);
+    let icosahedron = Polyhedron::generate(3, 5);
 
-    let front_face = Face {
-        vertices: vec![
-            &front_left_top,
-            &front_right_top,
-            &front_right_bottom,
-            &front_left_bottom,
-        ],
-        color: red,
-    };
+    let orange = Color::new(254, 133, 57);
+    let white = Color::new(231, 224, 220);
+    let blue = Color::new(45, 81, 157);
+    let red = Color::new(221, 30, 18);
+    let dark_red = Color::new(143, 33, 25);
+    let green = Color::new(35, 168, 74);
+    let yellow = Color::new(219, 226, 35);
+    let purple = Color::new(197, 107, 197);
 
-    let right_face = Face {
-        vertices: vec![
-            &front_right_top,
-            &back_right_top,
-            &back_right_bottom,
-            &front_right_bottom,
-        ],
-        color: blue,
-    };
+    let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
+    let uncolored_faces = icosahedron.faces.iter();
+    let faces: Vec<FaceWithColor> = uncolored_faces
+        .enumerate()
+        .map(|(i, f)| FaceWithColor {
+            face: f,
+            color: colors[i % colors.len()],
+        })
+        .collect();
 
-    let top_face = Face {
-        vertices: vec![
-            &front_right_top,
-            &front_left_top,
-            &back_left_top,
-            &back_right_top,
-        ],
-        color: green,
-    };
-
-    let left_face = Face {
-        vertices: vec![
-            &front_left_top,
-            &front_left_bottom,
-            &back_left_bottom,
-            &back_left_top,
-        ],
-        color: yellow,
-    };
-
-    let back_face = Face {
-        vertices: vec![
-            &back_left_top,
-            &back_right_top,
-            &back_right_bottom,
-            &back_left_bottom,
-        ],
-        color: purple,
-    };
-
-    let bottom_face = Face {
-        vertices: vec![
-            &front_left_bottom,
-            &front_right_bottom,
-            &back_right_bottom,
-            &back_left_bottom,
-        ],
-        color: cyan,
-    };
-
-    let faces = vec![
-        &front_face,
-        &right_face,
-        &top_face,
-        &left_face,
-        &back_face,
-        &bottom_face,
-    ];
     let mut seen_faces = faces
         .iter()
         .filter_map(|face| camera.see_face(face))
@@ -272,18 +217,18 @@ impl Camera {
         }
         let camera_plane_intersection = self.plane.intersection(&ray_to_camera);
         let point_in_camera_plane = &camera_plane_intersection - &self.point;
-        let scale = 500.0;
+        let scale = 1200.0;
         let point_x_in_camera = scale * point_in_camera_plane.dot(&self.u_right);
         let point_y_in_camera = scale * point_in_camera_plane.dot(&-&self.u_up);
 
         Some((point_x_in_camera, point_y_in_camera))
     }
-    fn see_face(&self, face: &Face) -> Option<SeenFace> {
+    fn see_face(&self, face: &FaceWithColor) -> Option<SeenFace> {
         let mut points = Vec::<(f64, f64)>::new();
         let mut sum_dist = 0.0;
-        for &vertex in &face.vertices {
+        for &vertex in &face.face.vertices {
             sum_dist += (vertex - &self.point).magnitude();
-            match self.see_point(*vertex) {
+            match self.see_point(vertex) {
                 Some(point) => points.push(point),
                 None => return None,
             }
@@ -291,13 +236,13 @@ impl Camera {
         Some(SeenFace {
             color: face.color,
             points,
-            distance_from_camera: sum_dist / face.vertices.len() as f64,
+            distance_from_camera: sum_dist / face.face.vertices.len() as f64,
         })
     }
 }
 
-struct Face<'a> {
-    vertices: Vec<&'a Vector3D>,
+struct FaceWithColor<'a> {
+    face: &'a Face,
     color: Color,
 }
 
@@ -320,55 +265,5 @@ impl Plane {
         let prod2 = ray.direction.dot(&self.normal);
         let prod3 = prod1 / prod2;
         &ray.point - &(&ray.direction * prod3)
-    }
-}
-
-#[derive(Debug)]
-struct Quaternion {
-    real: f64,
-    i: f64,
-    j: f64,
-    k: f64,
-}
-
-impl Quaternion {
-    fn new(real: f64, i: f64, j: f64, k: f64) -> Quaternion {
-        Quaternion { real, i, j, k }
-    }
-    fn from_vector(vector: &Vector3D) -> Quaternion {
-        Quaternion {
-            real: 0.0,
-            i: vector.x,
-            j: vector.y,
-            k: vector.z,
-        }
-    }
-    fn to_vector(&self) -> Vector3D {
-        Vector3D {
-            x: self.i,
-            y: self.j,
-            z: self.k,
-        }
-    }
-    fn conjugate(&self) -> Quaternion {
-        Quaternion {
-            real: self.real,
-            i: -self.i,
-            j: -self.j,
-            k: -self.k,
-        }
-    }
-}
-
-impl std::ops::Mul<&Quaternion> for &Quaternion {
-    type Output = Quaternion;
-
-    fn mul(self, rhs: &Quaternion) -> Quaternion {
-        Quaternion {
-            real: self.real * rhs.real - self.i * rhs.i - self.j * rhs.j - self.k * rhs.k,
-            i: self.real * rhs.i + self.i * rhs.real + self.j * rhs.k - self.k * rhs.j,
-            j: self.real * rhs.j - self.i * rhs.k + self.j * rhs.real + self.k * rhs.i,
-            k: self.real * rhs.k + self.i * rhs.j - self.j * rhs.i + self.k * rhs.real,
-        }
     }
 }
