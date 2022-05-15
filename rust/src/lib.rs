@@ -120,14 +120,14 @@ pub fn render(
     let make_dodecahedron = || Polyhedron::generate(5, 3);
     let make_icosahedron = || Polyhedron::generate(3, 5);
 
-    let base_shape = make_icosahedron();
+    let base_shape = make_dodecahedron();
     let cube_puzzle = TwistyPuzzle::new(
         &base_shape,
         // &[]
         &base_shape
             .faces
             .iter()
-            .map(|face| Cut::new("R", face.plane().offset(-0.46)))
+            .map(|face| Cut::new("R", face.plane().offset(-0.29)))
             .collect::<Vec<_>>(),
         // &[Cut::new("R", base_shape.faces[0].plane().offset(-0.2))],
     );

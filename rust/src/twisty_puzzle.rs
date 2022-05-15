@@ -1,6 +1,6 @@
 use web_sys::console;
 
-use crate::polyhedron::{Edge, Face, Polyhedron};
+use crate::polyhedron::{Face, Polyhedron};
 use crate::vector3d::Vector3D;
 use crate::{Plane, Ray};
 
@@ -25,9 +25,7 @@ impl TwistyPuzzle {
         for cut in cuts {
             let mut faces_above_plane: Vec<Face> = vec![];
             let mut faces_below_plane: Vec<Face> = vec![];
-            let face = &faces[2];
             for face in &faces {
-                // {
                 let mut vertices_above_plane: Vec<Vector3D> = vec![];
                 let mut vertices_below_plane: Vec<Vector3D> = vec![];
                 // Pairs of (vertex, is_above_cut_plane)
@@ -36,7 +34,12 @@ impl TwistyPuzzle {
                     .iter()
                     // Make the last vertex appear again at the end so all edges are included
                     .chain(std::iter::once(&face.vertices[0]))
-                    .map(|vertex| (vertex, vertex.dot(&cut.plane.normal) > 0.0))
+                    .map(|vertex| {
+                        (
+                            vertex,
+                            (vertex - &cut.plane.point).dot(&cut.plane.normal) > 0.0,
+                        )
+                    })
                     .collect();
                 let edges = vertices_with_status.windows(2);
                 for edge in edges {
@@ -78,7 +81,6 @@ impl TwistyPuzzle {
                 .chain(faces_below_plane.iter())
                 .cloned()
                 .collect();
-            // console::log_1(&format!("{}", faces.len()).into());
         }
 
         Self { faces }
