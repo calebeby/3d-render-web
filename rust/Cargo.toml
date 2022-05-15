@@ -16,4 +16,12 @@ version = "0.3.4"
 features = [
   'console',
   'CanvasRenderingContext2d',
+  'Document',
+  'Element',
+  'EventTarget',
+  'HtmlCanvasElement',
+  'HtmlElement',
+  'MouseEvent',
+  'Node',
+  'Window',
 ]

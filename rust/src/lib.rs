@@ -2,10 +2,15 @@ mod polyhedron;
 mod quaternion;
 mod twisty_puzzle;
 mod vector3d;
+
+use std::cell::Cell;
+use std::rc::Rc;
+
 use crate::twisty_puzzle::{Cut, TwistyPuzzle};
 use crate::vector3d::Vector3D;
 use polyhedron::{Face, Polyhedron};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 use web_sys::console;
 
 static mut CURSOR_START_POSITION: (i32, i32) = (0, 0);
@@ -65,8 +70,123 @@ fn compute_camera_position_from_orbit(
     }
 }
 
+struct State {
+    puzzle: TwistyPuzzle,
+}
+
 #[wasm_bindgen]
-pub fn render(
+pub fn start() {
+    let result = init();
+    match result {
+        Err(err) => console::error_1(&err),
+        _ => {}
+    }
+}
+
+fn init() -> Result<(), JsValue> {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let app_el = document.query_selector("#app").unwrap().unwrap();
+    let canvas = document
+        .create_element("canvas")?
+        .dyn_into::<web_sys::HtmlCanvasElement>()?;
+    app_el.append_child(&canvas)?;
+
+    let canvas_ctx = canvas
+        .get_context("2d")?
+        .unwrap()
+        .dyn_into::<web_sys::CanvasRenderingContext2d>()?;
+
+    let canvas = Rc::new(canvas);
+    let canvas_ctx = Rc::new(canvas_ctx);
+
+    let tetrahedron = Polyhedron::generate(3, 3);
+    let cube = Polyhedron::generate(4, 3);
+    let octahedron = Polyhedron::generate(3, 4);
+    let dodecahedron = Polyhedron::generate(5, 3);
+    let icosahedron = Polyhedron::generate(3, 5);
+
+    let megaminx = TwistyPuzzle::new(
+        &dodecahedron,
+        &dodecahedron
+            .faces
+            .iter()
+            .map(|face| Cut::new("R", face.plane().offset(-0.33)))
+            .collect::<Vec<_>>(),
+    );
+
+    let eitans_star = TwistyPuzzle::new(
+        &icosahedron,
+        &icosahedron
+            .faces
+            .iter()
+            .map(|face| Cut::new("R", face.plane().offset(-0.29)))
+            .collect::<Vec<_>>(),
+    );
+
+    let state = Rc::new(State { puzzle: megaminx });
+
+    let width = Rc::new(Cell::new(canvas.client_width()));
+    let height = Rc::new(Cell::new(canvas.client_height()));
+
+    {
+        let canvas = canvas.clone();
+        let canvas_ctx = canvas_ctx.clone();
+        let state = state.clone();
+        let width = width.clone();
+        let height = height.clone();
+
+        let update_width = move || {
+            width.set(canvas.client_width());
+            height.set(canvas.client_height());
+            canvas.set_width(width.get() as _);
+            canvas.set_height(height.get() as _);
+
+            render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+        };
+
+        update_width();
+
+        let resize_listener = Closure::wrap(Box::new(update_width) as Box<dyn FnMut()>);
+        window
+            .add_event_listener_with_callback("resize", resize_listener.as_ref().unchecked_ref())?;
+        resize_listener.forget();
+    }
+
+    {
+        let handle_mouse_event = move |event: web_sys::MouseEvent| {
+            let x = event.offset_x();
+            let y = event.offset_y();
+            render(
+                &state,
+                &canvas_ctx,
+                width.get(),
+                height.get(),
+                x,
+                y,
+                event.buttons() == 1,
+            );
+        };
+
+        let mouse_listener = Closure::wrap(Box::new(handle_mouse_event) as Box<dyn FnMut(_)>);
+        window.add_event_listener_with_callback(
+            "mousedown",
+            mouse_listener.as_ref().unchecked_ref(),
+        )?;
+        window
+            .add_event_listener_with_callback("mouseup", mouse_listener.as_ref().unchecked_ref())?;
+        window.add_event_listener_with_callback(
+            "mousemove",
+            mouse_listener.as_ref().unchecked_ref(),
+        )?;
+        mouse_listener.forget();
+    }
+
+    Ok(())
+}
+
+fn render(
+    state: &State,
     canvas_ctx: &web_sys::CanvasRenderingContext2d,
     width: i32,
     height: i32,
@@ -114,24 +234,6 @@ pub fn render(
         }
     }
 
-    let make_tetrahedron = || Polyhedron::generate(3, 3);
-    let make_cube = || Polyhedron::generate(4, 3);
-    let make_octahedron = || Polyhedron::generate(3, 4);
-    let make_dodecahedron = || Polyhedron::generate(5, 3);
-    let make_icosahedron = || Polyhedron::generate(3, 5);
-
-    let base_shape = make_dodecahedron();
-    let cube_puzzle = TwistyPuzzle::new(
-        &base_shape,
-        // &[]
-        &base_shape
-            .faces
-            .iter()
-            .map(|face| Cut::new("R", face.plane().offset(-0.29)))
-            .collect::<Vec<_>>(),
-        // &[Cut::new("R", base_shape.faces[0].plane().offset(-0.2))],
-    );
-
     let orange = Color::new(254, 133, 57);
     let white = Color::new(231, 224, 220);
     let blue = Color::new(45, 81, 157);
@@ -142,7 +244,7 @@ pub fn render(
     let purple = Color::new(197, 107, 197);
 
     let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
-    let uncolored_faces = cube_puzzle.faces().iter();
+    let uncolored_faces = state.puzzle.faces().iter();
     let faces: Vec<FaceWithColor> = uncolored_faces
         .enumerate()
         .map(|(i, f)| FaceWithColor {

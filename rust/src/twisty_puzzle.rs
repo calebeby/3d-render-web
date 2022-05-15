@@ -21,6 +21,7 @@ impl<'a> Cut<'a> {
 
 impl TwistyPuzzle {
     pub fn new(polyhedron: &Polyhedron, cuts: &[Cut]) -> Self {
+        console::log_1(&"new twisty_puzzle".into());
         let mut faces = polyhedron.faces.clone();
         for cut in cuts {
             let mut faces_above_plane: Vec<Face> = vec![];
