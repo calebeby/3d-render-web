@@ -9,6 +9,7 @@ use std::rc::Rc;
 use crate::twisty_puzzle::{Cut, TwistyPuzzle};
 use crate::vector3d::Vector3D;
 use polyhedron::{Face, Polyhedron};
+use twisty_puzzle::FaceWithColorIndex;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::console;
@@ -121,6 +122,15 @@ fn init() -> Result<(), JsValue> {
             .faces
             .iter()
             .map(|face| Cut::new("R", face.plane().offset(-0.29)))
+            .collect::<Vec<_>>(),
+    );
+
+    let rubiks_cube_3_3 = TwistyPuzzle::new(
+        &cube,
+        &cube
+            .faces
+            .iter()
+            .map(|face| Cut::new("R", face.plane().offset(-0.33)))
             .collect::<Vec<_>>(),
     );
 
@@ -246,9 +256,8 @@ fn render(
     let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
     let uncolored_faces = state.puzzle.faces().iter();
     let faces: Vec<FaceWithColor> = uncolored_faces
-        .enumerate()
-        .map(|(i, f)| FaceWithColor {
-            face: f,
+        .map(|FaceWithColorIndex(face, i)| FaceWithColor {
+            face,
             color: colors[i % colors.len()],
         })
         .collect();

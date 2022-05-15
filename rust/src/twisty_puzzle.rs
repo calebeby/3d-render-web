@@ -6,10 +6,6 @@ use crate::{Plane, Ray};
 
 const CUT_PLANE_THICKNESS: f64 = 0.005;
 
-pub struct TwistyPuzzle {
-    faces: Vec<Face>,
-}
-
 #[derive(Debug)]
 pub struct Cut<'a> {
     name: &'a str,
@@ -21,16 +17,30 @@ impl<'a> Cut<'a> {
     }
 }
 
+type ColorIndex = usize;
+
+#[derive(Clone)]
+pub struct FaceWithColorIndex(pub Face, pub ColorIndex);
+
+pub struct TwistyPuzzle {
+    faces: Vec<FaceWithColorIndex>,
+}
+
 impl TwistyPuzzle {
     pub fn new(polyhedron: &Polyhedron, cuts: &[Cut]) -> Self {
         console::log_1(&"new twisty_puzzle".into());
-        let mut faces = polyhedron.faces.clone();
+        let mut faces: Vec<FaceWithColorIndex> = polyhedron
+            .faces
+            .iter()
+            .enumerate()
+            .map(|(color_index, face)| FaceWithColorIndex(face.clone(), color_index as _))
+            .collect();
         for cut in cuts {
-            let mut faces_above_plane: Vec<Face> = vec![];
-            let mut faces_below_plane: Vec<Face> = vec![];
+            let mut faces_above_plane: Vec<FaceWithColorIndex> = vec![];
+            let mut faces_below_plane: Vec<FaceWithColorIndex> = vec![];
             let cut_plane_outer = cut.plane.offset(CUT_PLANE_THICKNESS);
             let cut_plane_inner = cut.plane.offset(-CUT_PLANE_THICKNESS);
-            for face in &faces {
+            for FaceWithColorIndex(face, color_index) in &faces {
                 let mut vertices_above_plane: Vec<Vector3D> = vec![];
                 let mut vertices_below_plane: Vec<Vector3D> = vec![];
                 // Pairs of (vertex, is_above_cut_plane)
@@ -70,14 +80,20 @@ impl TwistyPuzzle {
                     }
                 }
                 if vertices_above_plane.len() > 2 {
-                    faces_above_plane.push(Face {
-                        vertices: vertices_above_plane,
-                    });
+                    faces_above_plane.push(FaceWithColorIndex(
+                        Face {
+                            vertices: vertices_above_plane,
+                        },
+                        *color_index,
+                    ));
                 }
                 if vertices_below_plane.len() > 2 {
-                    faces_below_plane.push(Face {
-                        vertices: vertices_below_plane,
-                    });
+                    faces_below_plane.push(FaceWithColorIndex(
+                        Face {
+                            vertices: vertices_below_plane,
+                        },
+                        *color_index,
+                    ));
                 }
             }
             faces = faces_above_plane
@@ -89,7 +105,7 @@ impl TwistyPuzzle {
 
         Self { faces }
     }
-    pub fn faces(&self) -> &Vec<Face> {
+    pub fn faces(&self) -> &Vec<FaceWithColorIndex> {
         &self.faces
     }
 }
