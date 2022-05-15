@@ -83,10 +83,25 @@ impl Vector3D {
             && approx_equals(self.y, other.y)
             && approx_equals(self.z, other.z)
     }
+
+    pub fn from_average(other_vectors: &Vec<Vector3D>) -> Vector3D {
+        let mut sum_x = 0.0;
+        let mut sum_y = 0.0;
+        let mut sum_z = 0.0;
+
+        for vec in other_vectors {
+            sum_x += vec.x;
+            sum_y += vec.y;
+            sum_z += vec.z;
+        }
+
+        let count = other_vectors.len() as f64;
+        Vector3D::new(sum_x / count, sum_y / count, sum_z / count)
+    }
 }
 
 fn approx_equals(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-3
+    (a - b).abs() < 1e-8
 }
 
 impl std::fmt::Debug for Vector3D {

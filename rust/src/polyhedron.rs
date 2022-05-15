@@ -1,12 +1,10 @@
+use crate::{vector3d::Vector3D, Plane};
 use std::{
     collections::VecDeque,
     f64::consts::{PI, TAU},
 };
 
-use crate::vector3d::Vector3D;
-use web_sys::console;
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Face {
     pub vertices: Vec<Vector3D>,
 }
@@ -43,6 +41,18 @@ impl Face {
                 .collect(),
         }
     }
+
+    pub fn plane(&self) -> Plane {
+        let center = Vector3D::from_average(&self.vertices);
+
+        let edge_1_vector = &self.vertices[1] - &self.vertices[0];
+        let edge_2_vector = &self.vertices[2] - &self.vertices[1];
+
+        Plane {
+            point: center,
+            normal: edge_1_vector.cross(&edge_2_vector),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -65,7 +75,7 @@ impl Polyhedron {
 
         let mut bottom_vertices = vec![];
 
-        let angle_between_vertices = (TAU / p as f64);
+        let angle_between_vertices = TAU / p as f64;
         // sin(theta/2) = (edge_length / 2) / vertex_to_face_center
         let vertex_to_face_center = (edge_length / 2.0) / (angle_between_vertices / 2.0).sin();
 
@@ -134,7 +144,7 @@ struct QueuedEdge {
 }
 
 #[derive(Debug)]
-pub struct Edge(Vector3D, Vector3D);
+pub struct Edge(pub Vector3D, pub Vector3D);
 impl Edge {
     pub fn approx_equals(&self, other: &Edge) -> bool {
         (self.0.approx_equals(&other.0) && self.1.approx_equals(&other.1))

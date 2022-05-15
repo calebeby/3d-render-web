@@ -1,6 +1,8 @@
 mod polyhedron;
 mod quaternion;
+mod twisty_puzzle;
 mod vector3d;
+use crate::twisty_puzzle::{Cut, TwistyPuzzle};
 use crate::vector3d::Vector3D;
 use polyhedron::{Face, Polyhedron};
 use wasm_bindgen::prelude::*;
@@ -112,11 +114,23 @@ pub fn render(
         }
     }
 
-    // let tetrahedron = Polyhedron::generate(3, 3);
-    // let cube = Polyhedron::generate(4, 3);
-    // let octahedron = Polyhedron::generate(3, 4);
-    // let dodecahedron = Polyhedron::generate(5, 3);
-    let icosahedron = Polyhedron::generate(3, 5);
+    let make_tetrahedron = || Polyhedron::generate(3, 3);
+    let make_cube = || Polyhedron::generate(4, 3);
+    let make_octahedron = || Polyhedron::generate(3, 4);
+    let make_dodecahedron = || Polyhedron::generate(5, 3);
+    let make_icosahedron = || Polyhedron::generate(3, 5);
+
+    let base_shape = make_icosahedron();
+    let cube_puzzle = TwistyPuzzle::new(
+        &base_shape,
+        // &[]
+        &base_shape
+            .faces
+            .iter()
+            .map(|face| Cut::new("R", face.plane().offset(-0.46)))
+            .collect::<Vec<_>>(),
+        // &[Cut::new("R", base_shape.faces[0].plane().offset(-0.2))],
+    );
 
     let orange = Color::new(254, 133, 57);
     let white = Color::new(231, 224, 220);
@@ -128,7 +142,7 @@ pub fn render(
     let purple = Color::new(197, 107, 197);
 
     let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
-    let uncolored_faces = icosahedron.faces.iter();
+    let uncolored_faces = cube_puzzle.faces().iter();
     let faces: Vec<FaceWithColor> = uncolored_faces
         .enumerate()
         .map(|(i, f)| FaceWithColor {
@@ -253,17 +267,24 @@ pub struct Ray {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct Plane {
+pub struct Plane {
     point: Vector3D,
     normal: Vector3D,
 }
 
 impl Plane {
-    fn intersection(&self, ray: &Ray) -> Vector3D {
+    pub fn intersection(&self, ray: &Ray) -> Vector3D {
         let diff = &ray.point - &self.point;
         let prod1 = diff.dot(&self.normal);
         let prod2 = ray.direction.dot(&self.normal);
         let prod3 = prod1 / prod2;
         &ray.point - &(&ray.direction * prod3)
+    }
+    pub fn offset(&self, offset: f64) -> Plane {
+        let offset_vector = offset * self.normal.to_unit_vector();
+        Plane {
+            point: &self.point + &offset_vector,
+            normal: self.normal,
+        }
     }
 }
