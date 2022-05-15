@@ -4,6 +4,8 @@ use crate::polyhedron::{Face, Polyhedron};
 use crate::vector3d::Vector3D;
 use crate::{Plane, Ray};
 
+const CUT_PLANE_THICKNESS: f64 = 0.005;
+
 pub struct TwistyPuzzle {
     faces: Vec<Face>,
 }
@@ -26,6 +28,8 @@ impl TwistyPuzzle {
         for cut in cuts {
             let mut faces_above_plane: Vec<Face> = vec![];
             let mut faces_below_plane: Vec<Face> = vec![];
+            let cut_plane_outer = cut.plane.offset(CUT_PLANE_THICKNESS);
+            let cut_plane_inner = cut.plane.offset(-CUT_PLANE_THICKNESS);
             for face in &faces {
                 let mut vertices_above_plane: Vec<Vector3D> = vec![];
                 let mut vertices_below_plane: Vec<Vector3D> = vec![];
@@ -61,9 +65,8 @@ impl TwistyPuzzle {
                             point: vertex_a,
                             direction: vertex_a - &vertex_b,
                         };
-                        let intersection_point = cut.plane.intersection(&edge_ray);
-                        vertices_above_plane.push(intersection_point);
-                        vertices_below_plane.push(intersection_point);
+                        vertices_above_plane.push(cut_plane_outer.intersection(&edge_ray));
+                        vertices_below_plane.push(cut_plane_inner.intersection(&edge_ray));
                     }
                 }
                 if vertices_above_plane.len() > 2 {
