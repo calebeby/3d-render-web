@@ -19,9 +19,22 @@ canvas {
 }
 
 .buttons {
-  background: red;
+  background: #3f51b5;
   position: absolute;
   top: 0;
   width: 100%;
   min-height: 4vh;
+  display: grid;
+  grid-auto-flow: column;
+  align-content: center;
+  justify-content: center;
+  grid-gap: 0.5em;
+}
+
+.buttons button {
+  background: #7986cb;
+  padding: 0.7em 1em;
+  border-radius: 0.3em;
+  border: none;
+  cursor: pointer;
 }

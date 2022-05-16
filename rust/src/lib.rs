@@ -4,7 +4,7 @@ mod twisty_puzzle;
 mod vector3d;
 
 use std::cell::{Cell, RefCell};
-use std::collections::{vec_deque, VecDeque};
+use std::collections::VecDeque;
 use std::f64::consts::TAU;
 use std::rc::Rc;
 
@@ -151,6 +151,14 @@ fn init() -> Result<(), JsValue> {
             .collect::<Vec<_>>(),
     );
 
+    let skewb_diamond = TwistyPuzzle::new(
+        &octahedron,
+        &octahedron.faces[0..=3]
+            .iter()
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.41), TAU / 3.0))
+            .collect::<Vec<_>>(),
+    );
+
     let state = Rc::new(RefCell::new(State {
         puzzle: rubiks_cube_3_3,
         turn_queue: VecDeque::new(),
@@ -160,12 +168,13 @@ fn init() -> Result<(), JsValue> {
     let width = Rc::new(Cell::new(canvas.client_width()));
     let height = Rc::new(Cell::new(canvas.client_height()));
 
-    // let cuts_list: Vec<_> = state.borrow().puzzle.cuts_iter().collect();
-    for cut_name in state.borrow().puzzle.cuts_iter() {
+    let mut cuts_list: Vec<_> = state.borrow().puzzle.cuts_iter().cloned().collect();
+    cuts_list.sort();
+    for cut_name in cuts_list {
         let button = document
             .create_element("button")?
             .dyn_into::<web_sys::HtmlButtonElement>()?;
-        button.set_inner_text(cut_name);
+        button.set_inner_text(&cut_name);
         buttons_div.append_child(&button)?;
         let cut_name = Rc::new(cut_name.clone());
 
