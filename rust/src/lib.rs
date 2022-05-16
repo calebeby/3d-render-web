@@ -3,13 +3,15 @@ mod quaternion;
 mod twisty_puzzle;
 mod vector3d;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::{vec_deque, VecDeque};
+use std::f64::consts::TAU;
 use std::rc::Rc;
 
-use crate::twisty_puzzle::{Cut, TwistyPuzzle};
+use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
 use crate::vector3d::Vector3D;
 use polyhedron::{Face, Polyhedron};
-use twisty_puzzle::FaceWithColorIndex;
+use twisty_puzzle::PieceFace;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::console;
@@ -73,6 +75,8 @@ fn compute_camera_position_from_orbit(
 
 struct State {
     puzzle: TwistyPuzzle,
+    turn_queue: VecDeque<String>,
+    turn_progress: f64,
 }
 
 #[wasm_bindgen]
@@ -92,6 +96,11 @@ fn init() -> Result<(), JsValue> {
         .create_element("canvas")?
         .dyn_into::<web_sys::HtmlCanvasElement>()?;
     app_el.append_child(&canvas)?;
+    let buttons_div = document
+        .create_element("div")?
+        .dyn_into::<web_sys::HtmlDivElement>()?;
+    buttons_div.set_class_name("buttons");
+    app_el.append_child(&buttons_div)?;
 
     let canvas_ctx = canvas
         .get_context("2d")?
@@ -112,7 +121,7 @@ fn init() -> Result<(), JsValue> {
         &dodecahedron
             .faces
             .iter()
-            .map(|face| Cut::new("R", face.plane().offset(-0.33)))
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 5.0))
             .collect::<Vec<_>>(),
     );
 
@@ -121,7 +130,7 @@ fn init() -> Result<(), JsValue> {
         &icosahedron
             .faces
             .iter()
-            .map(|face| Cut::new("R", face.plane().offset(-0.29)))
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.29), TAU / 3.0))
             .collect::<Vec<_>>(),
     );
 
@@ -130,14 +139,67 @@ fn init() -> Result<(), JsValue> {
         &cube
             .faces
             .iter()
-            .map(|face| Cut::new("R", face.plane().offset(-0.33)))
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 4.0))
             .collect::<Vec<_>>(),
     );
 
-    let state = Rc::new(State { puzzle: megaminx });
+    let rubiks_cube_2_2 = TwistyPuzzle::new(
+        &cube,
+        &cube.faces[0..=2]
+            .iter()
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.5), TAU / 4.0))
+            .collect::<Vec<_>>(),
+    );
+
+    let state = Rc::new(RefCell::new(State {
+        puzzle: rubiks_cube_3_3,
+        turn_queue: VecDeque::new(),
+        turn_progress: 0.0,
+    }));
 
     let width = Rc::new(Cell::new(canvas.client_width()));
     let height = Rc::new(Cell::new(canvas.client_height()));
+
+    // let cuts_list: Vec<_> = state.borrow().puzzle.cuts_iter().collect();
+    for cut_name in state.borrow().puzzle.cuts_iter() {
+        let button = document
+            .create_element("button")?
+            .dyn_into::<web_sys::HtmlButtonElement>()?;
+        button.set_inner_text(cut_name);
+        buttons_div.append_child(&button)?;
+        let cut_name = Rc::new(cut_name.clone());
+
+        {
+            let cut_name = cut_name.clone();
+            let canvas_ctx = canvas_ctx.clone();
+            let state = state.clone();
+            let width = width.clone();
+            let height = height.clone();
+            let handle_click = move || {
+                state
+                    .borrow_mut()
+                    .turn_queue
+                    .push_back(cut_name.to_string());
+                render(
+                    &state.borrow_mut(),
+                    &canvas_ctx,
+                    width.get(),
+                    height.get(),
+                    0,
+                    0,
+                    false,
+                );
+                // console::log_1(&format!("{}", cut_name).into());
+            };
+
+            let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
+            button.add_event_listener_with_callback(
+                "click",
+                click_listener.as_ref().unchecked_ref(),
+            )?;
+            click_listener.forget();
+        }
+    }
 
     {
         let canvas = canvas.clone();
@@ -152,7 +214,15 @@ fn init() -> Result<(), JsValue> {
             canvas.set_width(width.get() as _);
             canvas.set_height(height.get() as _);
 
-            render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+            render(
+                &state.borrow(),
+                &canvas_ctx,
+                width.get(),
+                height.get(),
+                0,
+                0,
+                false,
+            );
         };
 
         update_width();
@@ -164,11 +234,16 @@ fn init() -> Result<(), JsValue> {
     }
 
     {
+        let canvas_ctx = canvas_ctx.clone();
+        let state = state.clone();
+        let width = width.clone();
+        let height = height.clone();
+
         let handle_mouse_event = move |event: web_sys::MouseEvent| {
             let x = event.offset_x();
             let y = event.offset_y();
             render(
-                &state,
+                &state.borrow(),
                 &canvas_ctx,
                 width.get(),
                 height.get(),
@@ -190,6 +265,35 @@ fn init() -> Result<(), JsValue> {
             mouse_listener.as_ref().unchecked_ref(),
         )?;
         mouse_listener.forget();
+    }
+
+    {
+        let canvas_ctx = canvas_ctx.clone();
+        let state = state.clone();
+        let width = width.clone();
+        let height = height.clone();
+
+        let rerender = move || {
+            let mut state = state.borrow_mut();
+            if state.turn_queue.len() > 0 {
+                if state.turn_progress >= 1.0 {
+                    state.turn_queue.pop_front();
+                    state.turn_progress = 0.0;
+                } else {
+                    state.turn_progress += 0.02;
+                }
+            }
+            if !unsafe { CURSOR_DOWN } {
+                render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+            }
+        };
+
+        let time_listener = Closure::wrap(Box::new(rerender) as Box<dyn FnMut()>);
+        window.set_interval_with_callback_and_timeout_and_arguments_0(
+            time_listener.as_ref().unchecked_ref(),
+            1,
+        )?;
+        time_listener.forget();
     }
 
     Ok(())
@@ -254,12 +358,27 @@ fn render(
     let purple = Color::new(197, 107, 197);
 
     let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
-    let uncolored_faces = state.puzzle.faces().iter();
+
+    let uncolored_faces = if state.turn_queue.len() > 0 {
+        let turned_puzzle = state
+            .puzzle
+            .get_turned_faces(&state.turn_queue[0], state.turn_progress);
+        turned_puzzle
+    } else {
+        state.puzzle.faces().clone()
+    };
     let faces: Vec<FaceWithColor> = uncolored_faces
-        .map(|FaceWithColorIndex(face, i)| FaceWithColor {
-            face,
-            color: colors[i % colors.len()],
-        })
+        .iter()
+        .map(
+            |PieceFace {
+                 face,
+                 color_index: i,
+                 ..
+             }| FaceWithColor {
+                face,
+                color: colors[i % colors.len()],
+            },
+        )
         .collect();
 
     let mut seen_faces = faces

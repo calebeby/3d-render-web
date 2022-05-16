@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use web_sys::console;
 
 use crate::polyhedron::{Face, Polyhedron};
@@ -7,40 +9,93 @@ use crate::{Plane, Ray};
 const CUT_PLANE_THICKNESS: f64 = 0.005;
 
 #[derive(Debug)]
-pub struct Cut<'a> {
-    name: &'a str,
+pub struct CutDefinition<'a> {
+    name: Option<&'a str>,
     plane: Plane,
+    rotation_angle: f64,
 }
-impl<'a> Cut<'a> {
-    pub fn new(name: &'a str, plane: Plane) -> Self {
-        Self { name, plane }
+impl<'a> CutDefinition<'a> {
+    pub fn new(name: &'a str, plane: Plane, rotation_angle: f64) -> Self {
+        Self {
+            name: Some(name),
+            plane,
+            rotation_angle,
+        }
+    }
+    pub fn new_infer_name(plane: Plane, rotation_angle: f64) -> Self {
+        Self {
+            name: None,
+            plane,
+            rotation_angle,
+        }
     }
 }
 
 type ColorIndex = usize;
 
-#[derive(Clone)]
-pub struct FaceWithColorIndex(pub Face, pub ColorIndex);
+#[derive(Debug, Clone)]
+pub struct PieceFace {
+    pub face: Face,
+    pub color_index: ColorIndex,
+    /// List of cut names that move this face
+    affecting_cut_indices: Vec<String>,
+}
 
+#[derive(Clone)]
 pub struct TwistyPuzzle {
-    faces: Vec<FaceWithColorIndex>,
+    faces: Vec<PieceFace>,
+    cuts: HashMap<String, Cut>,
+}
+
+#[derive(Clone)]
+struct Cut {
+    rotation_axis: Vector3D,
+    rotation_axis_point: Vector3D,
 }
 
 impl TwistyPuzzle {
-    pub fn new(polyhedron: &Polyhedron, cuts: &[Cut]) -> Self {
-        console::log_1(&"new twisty_puzzle".into());
-        let mut faces: Vec<FaceWithColorIndex> = polyhedron
+    pub fn new(polyhedron: &Polyhedron, cuts: &[CutDefinition]) -> Self {
+        let mut cuts_map: HashMap<String, Cut> = HashMap::new();
+        let mut inferred_name_i = 'A' as u8;
+        let cuts_with_names = cuts.iter().map(|cut| {
+            let cut_name = match cut.name {
+                Some(name) => name.to_string(),
+                None => {
+                    let char = inferred_name_i as char;
+                    inferred_name_i += 1;
+                    char.to_string()
+                }
+            };
+            (cut_name, cut)
+        });
+        let mut faces: Vec<PieceFace> = polyhedron
             .faces
             .iter()
             .enumerate()
-            .map(|(color_index, face)| FaceWithColorIndex(face.clone(), color_index as _))
+            .map(|(color_index, face)| PieceFace {
+                face: face.clone(),
+                color_index: color_index as _,
+                affecting_cut_indices: vec![],
+            })
             .collect();
-        for cut in cuts {
-            let mut faces_above_plane: Vec<FaceWithColorIndex> = vec![];
-            let mut faces_below_plane: Vec<FaceWithColorIndex> = vec![];
+        for (cut_name, cut) in cuts_with_names {
+            cuts_map.insert(
+                cut_name.clone(),
+                Cut {
+                    rotation_axis: cut.rotation_angle * cut.plane.normal.to_unit_vector(),
+                    rotation_axis_point: cut.plane.point,
+                },
+            );
+            let mut faces_above_plane: Vec<PieceFace> = vec![];
+            let mut faces_below_plane: Vec<PieceFace> = vec![];
             let cut_plane_outer = cut.plane.offset(CUT_PLANE_THICKNESS);
             let cut_plane_inner = cut.plane.offset(-CUT_PLANE_THICKNESS);
-            for FaceWithColorIndex(face, color_index) in &faces {
+            for PieceFace {
+                face,
+                color_index,
+                affecting_cut_indices,
+            } in &faces
+            {
                 let mut vertices_above_plane: Vec<Vector3D> = vec![];
                 let mut vertices_below_plane: Vec<Vector3D> = vec![];
                 // Pairs of (vertex, is_above_cut_plane)
@@ -80,20 +135,24 @@ impl TwistyPuzzle {
                     }
                 }
                 if vertices_above_plane.len() > 2 {
-                    faces_above_plane.push(FaceWithColorIndex(
-                        Face {
+                    let mut new_affecting_cut_indices = affecting_cut_indices.clone();
+                    new_affecting_cut_indices.push(cut_name.to_string());
+                    faces_above_plane.push(PieceFace {
+                        face: Face {
                             vertices: vertices_above_plane,
                         },
-                        *color_index,
-                    ));
+                        color_index: *color_index,
+                        affecting_cut_indices: new_affecting_cut_indices,
+                    });
                 }
                 if vertices_below_plane.len() > 2 {
-                    faces_below_plane.push(FaceWithColorIndex(
-                        Face {
+                    faces_below_plane.push(PieceFace {
+                        face: Face {
                             vertices: vertices_below_plane,
                         },
-                        *color_index,
-                    ));
+                        color_index: *color_index,
+                        affecting_cut_indices: affecting_cut_indices.clone(),
+                    });
                 }
             }
             faces = faces_above_plane
@@ -103,9 +162,40 @@ impl TwistyPuzzle {
                 .collect();
         }
 
-        Self { faces }
+        Self {
+            faces,
+            cuts: cuts_map,
+        }
     }
-    pub fn faces(&self) -> &Vec<FaceWithColorIndex> {
+    pub fn faces(&self) -> &Vec<PieceFace> {
         &self.faces
+    }
+
+    pub fn get_turned_faces(&self, cut_name: &str, interpolate_amount: f64) -> Vec<PieceFace> {
+        let cut = &self.cuts[cut_name];
+        let new_faces = self
+            .faces
+            .iter()
+            .map(|piece_face| PieceFace {
+                face: if piece_face
+                    .affecting_cut_indices
+                    .contains(&cut_name.to_string())
+                {
+                    piece_face.face.rotate_about_axis(
+                        interpolate_amount * cut.rotation_axis,
+                        cut.rotation_axis_point,
+                    )
+                } else {
+                    piece_face.face.clone()
+                },
+                affecting_cut_indices: piece_face.affecting_cut_indices.clone(),
+                color_index: piece_face.color_index,
+            })
+            .collect();
+        new_faces
+    }
+
+    pub fn cuts_iter(&self) -> impl Iterator<Item = &String> + '_ {
+        self.cuts.iter().map(|cut| cut.0)
     }
 }
