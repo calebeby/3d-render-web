@@ -84,7 +84,7 @@ impl Vector3D {
             && approx_equals(self.z, other.z)
     }
 
-    pub fn from_average(other_vectors: &Vec<Vector3D>) -> Vector3D {
+    pub fn from_average(other_vectors: &[Vector3D]) -> Vector3D {
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
         let mut sum_z = 0.0;

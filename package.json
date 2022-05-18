@@ -5,6 +5,8 @@
     "dev": "vite",
     "build": "npm run build-rust && tsc && vite build",
     "build-rust": "cd rust && wasm-pack build --target web",
+    "build-rust:dev": "cd rust && wasm-pack build --target web --dev",
+    "train": "cd rust && cargo run --bin train --features=serialize",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use wasm_bindgen::UnwrapThrowExt;
 use web_sys::console;
 
 use crate::polyhedron::{Face, Polyhedron};
@@ -38,24 +39,31 @@ pub struct PieceFace {
     pub face: Face,
     pub color_index: ColorIndex,
     /// List of cut names that move this face
-    affecting_cut_indices: Vec<String>,
+    affecting_turn_names: Vec<String>,
 }
 
-#[derive(Clone)]
 pub struct TwistyPuzzle {
     faces: Vec<PieceFace>,
-    cuts: HashMap<String, Cut>,
+    turns: HashMap<String, Turn>,
 }
 
-#[derive(Clone)]
-struct Cut {
+#[derive(Debug)]
+struct PhysicalTurn {
     rotation_axis: Vector3D,
     rotation_axis_point: Vector3D,
 }
 
+#[derive(Debug)]
+struct Turn {
+    // The indices of this vector are the new face indexes.
+    // The values are the old face indexes to pull colors from.
+    face_map: Vec<usize>,
+    physical_turn: PhysicalTurn,
+}
+
 impl TwistyPuzzle {
     pub fn new(polyhedron: &Polyhedron, cuts: &[CutDefinition]) -> Self {
-        let mut cuts_map: HashMap<String, Cut> = HashMap::new();
+        let mut physical_turns: Vec<(String, PhysicalTurn)> = vec![];
         let mut inferred_name_i = 'A' as u8;
         let cuts_with_names = cuts.iter().map(|cut| {
             let cut_name = match cut.name {
@@ -75,25 +83,33 @@ impl TwistyPuzzle {
             .map(|(color_index, face)| PieceFace {
                 face: face.clone(),
                 color_index: color_index as _,
-                affecting_cut_indices: vec![],
+                affecting_turn_names: vec![],
             })
             .collect();
-        for (cut_name, cut) in cuts_with_names {
-            cuts_map.insert(
-                cut_name.clone(),
-                Cut {
-                    rotation_axis: cut.rotation_angle * cut.plane.normal.to_unit_vector(),
+        for (turn_name, cut) in cuts_with_names {
+            let inverted_turn_name = format!("{}'", turn_name);
+            let rotation_axis = -1.0 * cut.rotation_angle * cut.plane.normal.to_unit_vector();
+            physical_turns.push((
+                turn_name.clone(),
+                PhysicalTurn {
+                    rotation_axis,
                     rotation_axis_point: cut.plane.point,
                 },
-            );
-            let mut faces_above_plane: Vec<PieceFace> = vec![];
-            let mut faces_below_plane: Vec<PieceFace> = vec![];
+            ));
+            physical_turns.push((
+                inverted_turn_name.clone(),
+                PhysicalTurn {
+                    rotation_axis: -1.0 * rotation_axis,
+                    rotation_axis_point: cut.plane.point,
+                },
+            ));
+            let mut updated_faces: Vec<PieceFace> = vec![];
             let cut_plane_outer = cut.plane.offset(CUT_PLANE_THICKNESS);
             let cut_plane_inner = cut.plane.offset(-CUT_PLANE_THICKNESS);
             for PieceFace {
                 face,
                 color_index,
-                affecting_cut_indices,
+                affecting_turn_names,
             } in &faces
             {
                 let mut vertices_above_plane: Vec<Vector3D> = vec![];
@@ -135,67 +151,145 @@ impl TwistyPuzzle {
                     }
                 }
                 if vertices_above_plane.len() > 2 {
-                    let mut new_affecting_cut_indices = affecting_cut_indices.clone();
-                    new_affecting_cut_indices.push(cut_name.to_string());
-                    faces_above_plane.push(PieceFace {
+                    let mut new_affecting_turn_names = affecting_turn_names.clone();
+                    new_affecting_turn_names.push(turn_name.to_string());
+                    new_affecting_turn_names.push(inverted_turn_name.to_string());
+                    updated_faces.push(PieceFace {
                         face: Face {
                             vertices: vertices_above_plane,
                         },
                         color_index: *color_index,
-                        affecting_cut_indices: new_affecting_cut_indices,
+                        affecting_turn_names: new_affecting_turn_names,
                     });
                 }
                 if vertices_below_plane.len() > 2 {
-                    faces_below_plane.push(PieceFace {
+                    updated_faces.push(PieceFace {
                         face: Face {
                             vertices: vertices_below_plane,
                         },
                         color_index: *color_index,
-                        affecting_cut_indices: affecting_cut_indices.clone(),
+                        affecting_turn_names: affecting_turn_names.clone(),
                     });
                 }
             }
-            faces = faces_above_plane
-                .iter()
-                .chain(faces_below_plane.iter())
-                .cloned()
-                .collect();
+            faces = updated_faces;
         }
 
-        Self {
-            faces,
-            cuts: cuts_map,
-        }
-    }
-    pub fn faces(&self) -> &Vec<PieceFace> {
-        &self.faces
+        let face_centers: Vec<Vector3D> = faces
+            .iter()
+            .map(|face| Vector3D::from_average(&face.face.vertices))
+            .collect();
+
+        // try out each of the turns to determine the symmetries between pieces
+        // and which faces map to which faces after each turn
+        let turns: HashMap<_, _> = physical_turns
+            .into_iter()
+            .map(|(turn_name, physical_turn)| {
+                let face_map: Vec<_> = faces
+                    .iter()
+                    .enumerate()
+                    .map(|(i, face)| {
+                        if face.affecting_turn_names.contains(&turn_name) {
+                            let original_location = &face_centers[i];
+                            let new_location = original_location.rotate_about_axis(
+                                physical_turn.rotation_axis,
+                                physical_turn.rotation_axis_point,
+                            );
+                            // Find the index in the old faces array
+                            // which corresponds to the new position
+                            face_centers
+                                .iter()
+                                .position(|old_location| old_location.approx_equals(&new_location))
+                                .unwrap_or(i)
+                        } else {
+                            // this turn does not affect this face; map to itself
+                            i
+                        }
+                    })
+                    .collect();
+
+                let mut inverted_face_map = vec![0; face_map.len()];
+                for (val, i) in face_map.iter().enumerate() {
+                    inverted_face_map[*i] = val;
+                }
+                let turn = Turn {
+                    physical_turn,
+                    face_map: inverted_face_map,
+                };
+                (turn_name, turn)
+            })
+            .collect();
+
+        Self { faces, turns }
     }
 
-    pub fn get_turned_faces(&self, cut_name: &str, interpolate_amount: f64) -> Vec<PieceFace> {
-        let cut = &self.cuts[cut_name];
+    pub fn get_percent_solved(&self, puzzle_state: &PuzzleState) -> f64 {
+        let mut num_solved_faces = 0;
+        for (i, color_index) in puzzle_state.iter().enumerate() {
+            if *color_index == self.faces[i].color_index {
+                num_solved_faces += 1;
+            }
+        }
+        num_solved_faces as f64 / self.faces.len() as f64
+    }
+
+    pub fn faces(&self, puzzle_state: &PuzzleState) -> Vec<PieceFace> {
+        self.faces
+            .iter()
+            .enumerate()
+            .map(|(i, piece_face)| PieceFace {
+                face: piece_face.face.clone(),
+                affecting_turn_names: piece_face.affecting_turn_names.clone(),
+                color_index: puzzle_state[i],
+            })
+            .collect()
+    }
+
+    pub fn get_physically_turned_faces(
+        &self,
+        turn_name: &str,
+        puzzle_state: &PuzzleState,
+        interpolate_amount: f64,
+    ) -> Vec<PieceFace> {
+        let cut = &self.turns[turn_name];
         let new_faces = self
             .faces
             .iter()
-            .map(|piece_face| PieceFace {
+            .enumerate()
+            .map(|(i, piece_face)| PieceFace {
                 face: if piece_face
-                    .affecting_cut_indices
-                    .contains(&cut_name.to_string())
+                    .affecting_turn_names
+                    .contains(&turn_name.to_string())
                 {
                     piece_face.face.rotate_about_axis(
-                        interpolate_amount * cut.rotation_axis,
-                        cut.rotation_axis_point,
+                        interpolate_amount * cut.physical_turn.rotation_axis,
+                        cut.physical_turn.rotation_axis_point,
                     )
                 } else {
                     piece_face.face.clone()
                 },
-                affecting_cut_indices: piece_face.affecting_cut_indices.clone(),
-                color_index: piece_face.color_index,
+                affecting_turn_names: piece_face.affecting_turn_names.clone(),
+                color_index: puzzle_state[i],
             })
             .collect();
         new_faces
     }
 
-    pub fn cuts_iter(&self) -> impl Iterator<Item = &String> + '_ {
-        self.cuts.iter().map(|cut| cut.0)
+    pub fn get_initial_state(&self) -> PuzzleState {
+        self.faces.iter().map(|face| face.color_index).collect()
+    }
+
+    pub fn get_derived_state(&self, previous_state: &PuzzleState, turn_name: &str) -> PuzzleState {
+        let face_map = &self.turns.get(turn_name).unwrap_throw().face_map;
+        face_map
+            .iter()
+            .map(|old_face_index| previous_state[*old_face_index])
+            .collect()
+    }
+
+    pub fn turns_iter(&self) -> impl Iterator<Item = &String> + '_ {
+        self.turns.iter().map(|turn| turn.0)
     }
 }
+
+pub type PuzzleState = Vec<usize>;

@@ -11,7 +11,7 @@ use std::rc::Rc;
 use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
 use crate::vector3d::Vector3D;
 use polyhedron::{Face, Polyhedron};
-use twisty_puzzle::PieceFace;
+use twisty_puzzle::{PieceFace, PuzzleState};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::console;
@@ -74,6 +74,7 @@ fn compute_camera_position_from_orbit(
 }
 
 struct State {
+    puzzle_state: PuzzleState,
     puzzle: TwistyPuzzle,
     turn_queue: VecDeque<String>,
     turn_progress: f64,
@@ -110,57 +111,72 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let tetrahedron = Polyhedron::generate(3, 3);
+    let tetrahedron = || Polyhedron::generate(3, 3);
     let cube = Polyhedron::generate(4, 3);
     let octahedron = Polyhedron::generate(3, 4);
     let dodecahedron = Polyhedron::generate(5, 3);
     let icosahedron = Polyhedron::generate(3, 5);
 
-    let megaminx = TwistyPuzzle::new(
-        &dodecahedron,
-        &dodecahedron
-            .faces
-            .iter()
-            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 5.0))
-            .collect::<Vec<_>>(),
-    );
+    let megaminx = || {
+        TwistyPuzzle::new(
+            &dodecahedron,
+            &dodecahedron
+                .faces
+                .iter()
+                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 5.0))
+                .collect::<Vec<_>>(),
+        )
+    };
 
-    let eitans_star = TwistyPuzzle::new(
-        &icosahedron,
-        &icosahedron
-            .faces
-            .iter()
-            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.29), TAU / 3.0))
-            .collect::<Vec<_>>(),
-    );
+    let eitans_star = || {
+        TwistyPuzzle::new(
+            &icosahedron,
+            &icosahedron
+                .faces
+                .iter()
+                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.29), TAU / 3.0))
+                .collect::<Vec<_>>(),
+        )
+    };
 
-    let rubiks_cube_3_3 = TwistyPuzzle::new(
-        &cube,
-        &cube
-            .faces
-            .iter()
-            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 4.0))
-            .collect::<Vec<_>>(),
-    );
+    let rubiks_cube_3_3 = || {
+        TwistyPuzzle::new(
+            &cube,
+            &cube
+                .faces
+                .iter()
+                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 4.0))
+                .collect::<Vec<_>>(),
+        )
+    };
 
-    let rubiks_cube_2_2 = TwistyPuzzle::new(
-        &cube,
-        &cube.faces[0..=2]
-            .iter()
-            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.5), TAU / 4.0))
-            .collect::<Vec<_>>(),
-    );
+    let rubiks_cube_2_2 = || {
+        TwistyPuzzle::new(
+            &cube,
+            &cube.faces[0..=2]
+                .iter()
+                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.5), TAU / 4.0))
+                .collect::<Vec<_>>(),
+        )
+    };
 
-    let skewb_diamond = TwistyPuzzle::new(
-        &octahedron,
-        &octahedron.faces[0..=3]
-            .iter()
-            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.41), TAU / 3.0))
-            .collect::<Vec<_>>(),
-    );
+    let skewb_diamond = || {
+        TwistyPuzzle::new(
+            &octahedron,
+            &octahedron.faces[0..=3]
+                .iter()
+                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.41), TAU / 3.0))
+                .collect::<Vec<_>>(),
+        )
+    };
+
+    let puzzle = rubiks_cube_3_3();
+
+    let puzzle_state = puzzle.get_initial_state();
 
     let state = Rc::new(RefCell::new(State {
-        puzzle: rubiks_cube_3_3,
+        puzzle,
+        puzzle_state,
         turn_queue: VecDeque::new(),
         turn_progress: 0.0,
     }));
@@ -168,7 +184,7 @@ fn init() -> Result<(), JsValue> {
     let width = Rc::new(Cell::new(canvas.client_width()));
     let height = Rc::new(Cell::new(canvas.client_height()));
 
-    let mut cuts_list: Vec<_> = state.borrow().puzzle.cuts_iter().cloned().collect();
+    let mut cuts_list: Vec<_> = state.borrow().puzzle.turns_iter().cloned().collect();
     cuts_list.sort();
     for cut_name in cuts_list {
         let button = document
@@ -198,7 +214,6 @@ fn init() -> Result<(), JsValue> {
                     0,
                     false,
                 );
-                // console::log_1(&format!("{}", cut_name).into());
             };
 
             let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
@@ -285,7 +300,10 @@ fn init() -> Result<(), JsValue> {
         let rerender = move || {
             let mut state = state.borrow_mut();
             if state.turn_queue.len() > 0 {
-                if state.turn_progress >= 1.0 {
+                if state.turn_progress > 1.0 {
+                    state.puzzle_state = state
+                        .puzzle
+                        .get_derived_state(&state.puzzle_state, &state.turn_queue[0]);
                     state.turn_queue.pop_front();
                     state.turn_progress = 0.0;
                 } else {
@@ -369,12 +387,14 @@ fn render(
     let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
 
     let uncolored_faces = if state.turn_queue.len() > 0 {
-        let turned_puzzle = state
-            .puzzle
-            .get_turned_faces(&state.turn_queue[0], state.turn_progress);
+        let turned_puzzle = state.puzzle.get_physically_turned_faces(
+            &state.turn_queue[0],
+            &state.puzzle_state,
+            state.turn_progress,
+        );
         turned_puzzle
     } else {
-        state.puzzle.faces().clone()
+        state.puzzle.faces(&state.puzzle_state).clone()
     };
     let faces: Vec<FaceWithColor> = uncolored_faces
         .iter()
@@ -412,6 +432,19 @@ fn render(
         canvas_ctx.close_path();
         canvas_ctx.fill();
     }
+
+    canvas_ctx.set_fill_style(&"#ffffff".into());
+    canvas_ctx.set_font("30px Arial");
+    canvas_ctx
+        .fill_text(
+            &format!(
+                "{:.1}% solved",
+                state.puzzle.get_percent_solved(&state.puzzle_state) * 100.0
+            ),
+            10.0,
+            50.0,
+        )
+        .unwrap();
 }
 
 #[derive(Debug, Clone, Copy)]
