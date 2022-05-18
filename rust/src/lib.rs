@@ -139,13 +139,22 @@ fn init() -> Result<(), JsValue> {
         )
     };
 
+    let rubiks_cube_cut_names = ["U", "F", "R", "B", "L", "D"];
+
     let rubiks_cube_3_3 = || {
         TwistyPuzzle::new(
             &cube,
             &cube
                 .faces
                 .iter()
-                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 4.0))
+                .enumerate()
+                .map(|(i, face)| {
+                    CutDefinition::new(
+                        rubiks_cube_cut_names[i],
+                        face.plane().offset(-0.33),
+                        TAU / 4.0,
+                    )
+                })
                 .collect::<Vec<_>>(),
         )
     };
@@ -155,7 +164,14 @@ fn init() -> Result<(), JsValue> {
             &cube,
             &cube.faces[0..=2]
                 .iter()
-                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.5), TAU / 4.0))
+                .enumerate()
+                .map(|(i, face)| {
+                    CutDefinition::new(
+                        rubiks_cube_cut_names[i],
+                        face.plane().offset(-0.5),
+                        TAU / 4.0,
+                    )
+                })
                 .collect::<Vec<_>>(),
         )
     };
@@ -335,10 +351,8 @@ fn render(
     cursor_y: i32,
     cursor_down: bool,
 ) {
-    let mut camera: Camera = (unsafe { ORBIT_START_CAMERA }).unwrap_or(Camera::new_towards(
-        Vector3D::new(4.0, 4.0, 4.0),
-        Vector3D::zero(),
-    ));
+    let mut camera: Camera = (unsafe { ORBIT_START_CAMERA })
+        .unwrap_or_else(|| Camera::new_towards(Vector3D::new(3.0, 2.0, 2.0), Vector3D::zero()));
 
     unsafe {
         if !CURSOR_DOWN && cursor_down {
