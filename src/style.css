@@ -15,13 +15,15 @@ body {
   color: #2c3e50;
   height: 100vh;
   overflow: hidden;
-  display: flex;
-  flex-direction: column-reverse;
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 
 canvas {
   width: 100%;
-  height: 100%;
+  align-self: stretch;
+  justify-self: stretch;
+  min-height: 0;
 }
 
 .buttons {

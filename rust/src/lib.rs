@@ -93,15 +93,16 @@ fn init() -> Result<(), JsValue> {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let app_el = document.query_selector("#app").unwrap().unwrap();
-    let canvas = document
-        .create_element("canvas")?
-        .dyn_into::<web_sys::HtmlCanvasElement>()?;
-    app_el.append_child(&canvas)?;
     let buttons_div = document
         .create_element("div")?
         .dyn_into::<web_sys::HtmlDivElement>()?;
     buttons_div.set_class_name("buttons");
     app_el.append_child(&buttons_div)?;
+
+    let canvas = document
+        .create_element("canvas")?
+        .dyn_into::<web_sys::HtmlCanvasElement>()?;
+    app_el.append_child(&canvas)?;
 
     let canvas_ctx = canvas
         .get_context("2d")?
