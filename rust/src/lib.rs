@@ -217,21 +217,11 @@ fn init() -> Result<(), JsValue> {
         solve_button.set_inner_text("Solve");
         buttons_div.append_child(&solve_button)?;
 
-        let canvas_ctx = canvas_ctx.clone();
         let state = state.clone();
-        let width = width.clone();
-        let height = height.clone();
         let handle_click = move || {
             let mut state = state.borrow_mut();
             state.is_solving = true;
             solve_next_step(&mut state);
-            // let turns: VecDeque<_> = state
-            //     .solver
-            //     .next_move_iter(&state.puzzle, &state.puzzle_state)
-            //     .take(200)
-            //     .collect();
-            // state.turn_queue = turns;
-            // render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
         };
 
         let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
