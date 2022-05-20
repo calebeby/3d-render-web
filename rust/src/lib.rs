@@ -1,5 +1,6 @@
 mod polyhedron;
 mod quaternion;
+mod solver;
 mod twisty_puzzle;
 mod vector3d;
 
@@ -11,6 +12,7 @@ use std::rc::Rc;
 use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
 use crate::vector3d::Vector3D;
 use polyhedron::{Face, Polyhedron};
+use solver::{LookaheadSolver, OneMoveSolver, Solver};
 use twisty_puzzle::{PieceFace, PuzzleState};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -74,6 +76,7 @@ fn compute_camera_position_from_orbit(
 }
 
 struct State {
+    solver: LookaheadSolver,
     puzzle_state: PuzzleState,
     puzzle: TwistyPuzzle,
     turn_queue: VecDeque<String>,
@@ -142,7 +145,7 @@ fn init() -> Result<(), JsValue> {
 
     let rubiks_cube_cut_names = ["U", "F", "R", "B", "L", "D"];
 
-    let rubiks_cube_3_3 = || {
+    let rubiks_cube_3x3 = || {
         TwistyPuzzle::new(
             &cube,
             &cube
@@ -160,7 +163,7 @@ fn init() -> Result<(), JsValue> {
         )
     };
 
-    let rubiks_cube_2_2 = || {
+    let rubiks_cube_2x2 = || {
         TwistyPuzzle::new(
             &cube,
             &cube.faces[0..=2]
@@ -187,11 +190,12 @@ fn init() -> Result<(), JsValue> {
         )
     };
 
-    let puzzle = rubiks_cube_3_3();
+    let puzzle = megaminx();
 
     let puzzle_state = puzzle.get_initial_state();
 
     let state = Rc::new(RefCell::new(State {
+        solver: LookaheadSolver::new(&puzzle),
         puzzle,
         puzzle_state,
         turn_queue: VecDeque::new(),
@@ -223,7 +227,7 @@ fn init() -> Result<(), JsValue> {
                     .turn_queue
                     .push_back(cut_name.to_string());
                 render(
-                    &state.borrow_mut(),
+                    &state.borrow(),
                     &canvas_ctx,
                     width.get(),
                     height.get(),
@@ -240,6 +244,109 @@ fn init() -> Result<(), JsValue> {
             )?;
             click_listener.forget();
         }
+    }
+
+    {
+        let solve_button = document
+            .create_element("button")?
+            .dyn_into::<web_sys::HtmlButtonElement>()?;
+        solve_button.set_inner_text("Solve Step");
+        buttons_div.append_child(&solve_button)?;
+
+        let canvas_ctx = canvas_ctx.clone();
+        let state = state.clone();
+        let width = width.clone();
+        let height = height.clone();
+        let handle_click = move || {
+            let mut state = state.borrow_mut();
+            let turn_name = state
+                .solver
+                .get_next_move(&state.puzzle, &state.puzzle_state);
+            if let Some(turn_name) = turn_name {
+                state.turn_queue.push_back(turn_name);
+                render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+            }
+        };
+
+        let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
+        solve_button
+            .add_event_listener_with_callback("click", click_listener.as_ref().unchecked_ref())?;
+        click_listener.forget();
+    }
+
+    {
+        let solve_button = document
+            .create_element("button")?
+            .dyn_into::<web_sys::HtmlButtonElement>()?;
+        solve_button.set_inner_text("Solve");
+        buttons_div.append_child(&solve_button)?;
+
+        let canvas_ctx = canvas_ctx.clone();
+        let state = state.clone();
+        let width = width.clone();
+        let height = height.clone();
+        let handle_click = move || {
+            let mut state = state.borrow_mut();
+            let mut puzzle_state = state.puzzle_state.clone();
+            while let Some(turn_name) = state.solver.get_next_move(&state.puzzle, &puzzle_state) {
+                puzzle_state = state.puzzle.get_derived_state(&puzzle_state, &turn_name);
+                state.turn_queue.push_back(turn_name);
+            }
+            render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+        };
+
+        let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
+        solve_button
+            .add_event_listener_with_callback("click", click_listener.as_ref().unchecked_ref())?;
+        click_listener.forget();
+    }
+
+    {
+        let scramble_button = document
+            .create_element("button")?
+            .dyn_into::<web_sys::HtmlButtonElement>()?;
+        scramble_button.set_inner_text("Scramble");
+        buttons_div.append_child(&scramble_button)?;
+
+        let canvas_ctx = canvas_ctx.clone();
+        let state = state.clone();
+        let width = width.clone();
+        let height = height.clone();
+        let handle_click = move || {
+            let mut state = state.borrow_mut();
+            state.turn_queue = VecDeque::new();
+            state.puzzle_state = state.puzzle.scramble(&state.puzzle_state, 200);
+            render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+        };
+
+        let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
+        scramble_button
+            .add_event_listener_with_callback("click", click_listener.as_ref().unchecked_ref())?;
+        click_listener.forget();
+    }
+
+    {
+        let reset_button = document
+            .create_element("button")?
+            .dyn_into::<web_sys::HtmlButtonElement>()?;
+        reset_button.set_inner_text("Reset");
+        buttons_div.append_child(&reset_button)?;
+
+        let canvas_ctx = canvas_ctx.clone();
+        let state = state.clone();
+        let width = width.clone();
+        let height = height.clone();
+        let handle_click = move || {
+            let mut state = state.borrow_mut();
+            state.turn_queue = VecDeque::new();
+            state.puzzle_state = state.puzzle.get_initial_state();
+            render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+        };
+
+        let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
+        reset_button
+            .add_event_listener_with_callback("click", click_listener.as_ref().unchecked_ref())?;
+        click_listener.forget();
     }
 
     {
@@ -353,7 +460,7 @@ fn render(
     cursor_down: bool,
 ) {
     let mut camera: Camera = (unsafe { ORBIT_START_CAMERA })
-        .unwrap_or_else(|| Camera::new_towards(Vector3D::new(3.0, 2.0, 2.0), Vector3D::zero()));
+        .unwrap_or_else(|| Camera::new_towards(Vector3D::new(4.0, 2.0, 2.0), Vector3D::zero()));
 
     unsafe {
         if !CURSOR_DOWN && cursor_down {
@@ -454,7 +561,9 @@ fn render(
         .fill_text(
             &format!(
                 "{:.1}% solved",
-                state.puzzle.get_percent_solved(&state.puzzle_state) * 100.0
+                state.puzzle.get_num_solved_faces(&state.puzzle_state) as f64
+                    / state.puzzle.get_num_faces() as f64
+                    * 100.0
             ),
             10.0,
             50.0,

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use rand::distributions::Uniform;
+use rand::Rng;
 use wasm_bindgen::UnwrapThrowExt;
 use web_sys::console;
 
@@ -42,11 +44,6 @@ pub struct PieceFace {
     affecting_turn_names: Vec<String>,
 }
 
-pub struct TwistyPuzzle {
-    faces: Vec<PieceFace>,
-    turns: HashMap<String, Turn>,
-}
-
 #[derive(Debug)]
 struct PhysicalTurn {
     rotation_axis: Vector3D,
@@ -59,6 +56,13 @@ struct Turn {
     // The values are the old face indexes to pull colors from.
     face_map: Vec<usize>,
     physical_turn: PhysicalTurn,
+}
+
+pub struct TwistyPuzzle {
+    faces: Vec<PieceFace>,
+    turns: HashMap<String, Turn>,
+    // Each piece is a vector of its face indexes
+    pieces: Vec<Vec<usize>>,
 }
 
 impl TwistyPuzzle {
@@ -175,6 +179,20 @@ impl TwistyPuzzle {
             faces = updated_faces;
         }
 
+        // Pieces decides which physical faces are attached together
+        let mut pieces_map: HashMap<_, Vec<usize>> = HashMap::new();
+        for (face_i, face) in faces.iter().enumerate() {
+            let mut affecting_turn_names = face.affecting_turn_names.clone();
+            affecting_turn_names.sort();
+            match pieces_map.get_mut(&affecting_turn_names) {
+                Some(faces) => faces.push(face_i),
+                None => {
+                    pieces_map.insert(affecting_turn_names, vec![face_i]);
+                }
+            }
+        }
+        let pieces: Vec<_> = pieces_map.into_values().collect();
+
         let face_centers: Vec<Vector3D> = faces
             .iter()
             .map(|face| Vector3D::from_average(&face.face.vertices))
@@ -220,17 +238,53 @@ impl TwistyPuzzle {
             })
             .collect();
 
-        Self { faces, turns }
+        Self {
+            faces,
+            turns,
+            pieces,
+        }
     }
 
-    pub fn get_percent_solved(&self, puzzle_state: &PuzzleState) -> f64 {
-        let mut num_solved_faces = 0;
-        for (i, color_index) in puzzle_state.iter().enumerate() {
-            if *color_index == self.faces[i].color_index {
-                num_solved_faces += 1;
-            }
-        }
-        num_solved_faces as f64 / self.faces.len() as f64
+    pub fn get_num_faces(&self) -> usize {
+        self.faces.len()
+    }
+
+    pub fn get_num_pieces(&self) -> usize {
+        self.pieces.len()
+    }
+
+    pub fn get_num_solved_faces(&self, puzzle_state: &PuzzleState) -> usize {
+        puzzle_state
+            .iter()
+            .enumerate()
+            .fold(0, |num_solved_faces, (i, color_index)| {
+                if *color_index == self.faces[i].color_index {
+                    num_solved_faces + 1
+                } else {
+                    num_solved_faces
+                }
+            })
+    }
+
+    pub fn get_num_solved_pieces(&self, puzzle_state: &PuzzleState) -> usize {
+        let faces_solved_states: Vec<bool> = puzzle_state
+            .iter()
+            .enumerate()
+            .map(|(i, color_index)| *color_index == self.faces[i].color_index)
+            .collect();
+
+        self.pieces
+            .iter()
+            .fold(0, |num_solved_pieces, piece_faces| {
+                let every_face_solved = piece_faces
+                    .iter()
+                    .all(|face_index| faces_solved_states[*face_index]);
+                if every_face_solved {
+                    num_solved_pieces + 1
+                } else {
+                    num_solved_pieces
+                }
+            })
     }
 
     pub fn faces(&self, puzzle_state: &PuzzleState) -> Vec<PieceFace> {
@@ -280,7 +334,7 @@ impl TwistyPuzzle {
     }
 
     pub fn get_derived_state(&self, previous_state: &PuzzleState, turn_name: &str) -> PuzzleState {
-        let face_map = &self.turns.get(turn_name).unwrap_throw().face_map;
+        let face_map = &self.turns.get(turn_name).unwrap().face_map;
         face_map
             .iter()
             .map(|old_face_index| previous_state[*old_face_index])
@@ -289,6 +343,22 @@ impl TwistyPuzzle {
 
     pub fn turns_iter(&self) -> impl Iterator<Item = &String> + '_ {
         self.turns.iter().map(|turn| turn.0)
+    }
+
+    pub fn scramble(&self, initial_state: &PuzzleState, limit: u64) -> PuzzleState {
+        let mut state = initial_state.clone();
+
+        let all_turns: Vec<_> = self.turns_iter().collect();
+
+        let mut rng = rand::thread_rng();
+        let range = Uniform::new(0, all_turns.len());
+
+        for _ in 0..limit {
+            let turn_name = all_turns[rng.sample(range)];
+            state = self.get_derived_state(&state, turn_name);
+        }
+
+        state
     }
 }
 
