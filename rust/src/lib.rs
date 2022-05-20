@@ -1,4 +1,5 @@
 mod polyhedron;
+mod puzzles;
 mod quaternion;
 mod solver;
 mod twisty_puzzle;
@@ -6,12 +7,11 @@ mod vector3d;
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
-use std::f64::consts::TAU;
 use std::rc::Rc;
 
-use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
+use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
-use polyhedron::{Face, Polyhedron};
+use polyhedron::Face;
 use solver::{LookaheadSolver, Solver};
 use twisty_puzzle::{PieceFace, PuzzleState};
 use wasm_bindgen::prelude::*;
@@ -116,161 +116,7 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let tetrahedron = Polyhedron::generate(3, 3);
-    let cube = Polyhedron::generate(4, 3);
-    let octahedron = Polyhedron::generate(3, 4);
-    let dodecahedron = Polyhedron::generate(5, 3);
-    let icosahedron = Polyhedron::generate(3, 5);
-
-    let megaminx = || {
-        TwistyPuzzle::new(
-            &dodecahedron,
-            &dodecahedron
-                .faces
-                .iter()
-                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 5.0))
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let starminx = || {
-        TwistyPuzzle::new(
-            &dodecahedron,
-            &dodecahedron
-                .faces
-                .iter()
-                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.75), TAU / 5.0))
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let eitans_star = || {
-        TwistyPuzzle::new(
-            &icosahedron,
-            &icosahedron
-                .faces
-                .iter()
-                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.29), TAU / 3.0))
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let rubiks_cube_cut_names = ["U", "F", "R", "B", "L", "D"];
-
-    let rubiks_cube_3x3 = || {
-        TwistyPuzzle::new(
-            &cube,
-            &cube
-                .faces
-                .iter()
-                .enumerate()
-                .map(|(i, face)| {
-                    CutDefinition::new(
-                        rubiks_cube_cut_names[i],
-                        face.plane().offset(-0.33),
-                        TAU / 4.0,
-                    )
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let rubiks_cube_2x2 = || {
-        TwistyPuzzle::new(
-            &cube,
-            &cube.faces[0..=2]
-                .iter()
-                .enumerate()
-                .map(|(i, face)| {
-                    CutDefinition::new(
-                        rubiks_cube_cut_names[i],
-                        face.plane().offset(-0.5),
-                        TAU / 4.0,
-                    )
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let compy_cube = || {
-        TwistyPuzzle::new(
-            &cube,
-            &cube
-                .vertices
-                .iter()
-                .map(|vertex| {
-                    let plane = Plane {
-                        point: *vertex,
-                        normal: *vertex,
-                    };
-                    CutDefinition::new_infer_name(plane.offset(-0.45), TAU / 3.0)
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let pentultimate = || {
-        TwistyPuzzle::new(
-            &dodecahedron,
-            &dodecahedron
-                .vertices
-                .iter()
-                .map(|vertex| {
-                    let plane = Plane {
-                        point: *vertex,
-                        normal: *vertex,
-                    };
-                    CutDefinition::new_infer_name(plane.offset(-0.1), TAU / 3.0)
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let dino_starminx = || {
-        TwistyPuzzle::new(
-            &dodecahedron,
-            &dodecahedron
-                .vertices
-                .iter()
-                .map(|vertex| {
-                    let plane = Plane {
-                        point: *vertex,
-                        normal: *vertex,
-                    };
-                    CutDefinition::new_infer_name(plane.offset(-0.3), TAU / 3.0)
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let pyraminx_thing = || {
-        TwistyPuzzle::new(
-            &tetrahedron,
-            &tetrahedron
-                .vertices
-                .iter()
-                .map(|vertex| {
-                    let plane = Plane {
-                        point: *vertex,
-                        normal: *vertex,
-                    };
-                    CutDefinition::new_infer_name(plane.offset(-0.5), TAU / 3.0)
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let skewb_diamond = || {
-        TwistyPuzzle::new(
-            &octahedron,
-            &octahedron.faces[0..=3]
-                .iter()
-                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.41), TAU / 3.0))
-                .collect::<Vec<_>>(),
-        )
-    };
-
-    let puzzle = pyraminx_thing();
+    let puzzle = puzzles::pyraminx_thing();
 
     let puzzle_state = puzzle.get_initial_state();
 

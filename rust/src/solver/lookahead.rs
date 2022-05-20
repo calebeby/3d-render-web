@@ -1,4 +1,4 @@
-use rand::{random, thread_rng, Rng};
+use rand::{thread_rng, Rng};
 use web_sys::console;
 
 use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
@@ -8,7 +8,6 @@ use super::Solver;
 pub struct LookaheadSolver {
     depth: usize,
     turns: Vec<String>,
-    queued_moves: Vec<String>,
 }
 
 impl Solver for LookaheadSolver {
@@ -17,7 +16,6 @@ impl Solver for LookaheadSolver {
         Self {
             depth,
             turns: puzzle.turns_iter().cloned().collect(),
-            queued_moves: vec![],
         }
     }
 
