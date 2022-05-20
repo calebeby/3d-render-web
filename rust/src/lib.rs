@@ -119,12 +119,12 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let puzzle = puzzles::pyraminx_thing();
+    let puzzle = puzzles::dino_starminx();
 
     let puzzle_state = puzzle.get_initial_state();
 
     let state = Rc::new(RefCell::new(State {
-        solver: LookaheadSolver::new(&puzzle, 7),
+        solver: LookaheadSolver::new(&puzzle, 3),
         is_solving: false,
         puzzle,
         puzzle_state,
