@@ -1,15 +1,16 @@
-use ndarray::{Array2, Ix2};
+use ndarray::Ix2;
 use neuronika::{
+    data::DataLoader,
     nn::{loss, Dropout, Learnable, Linear, ModelStatus},
     optim, Backward, Data, Forward, Gradient, MatMatMulT, Overwrite, Param, VarDiff,
 };
-use rand::Rng;
 
 struct NeuralNetwork {
     lin1: Linear,
     lin2: Linear,
     lin3: Linear,
-    dropout1: Dropout,
+    lin4: Linear,
+    dropout: Dropout,
     status: ModelStatus,
 }
 
@@ -18,10 +19,11 @@ impl NeuralNetwork {
         let mut status = ModelStatus::default();
 
         Self {
-            lin1: status.register(Linear::new(1, 5)),
-            lin2: status.register(Linear::new(5, 5)),
-            dropout1: status.register(Dropout::new(0.0)),
-            lin3: status.register(Linear::new(5, 1)),
+            lin1: status.register(Linear::new(24, 16)),
+            lin2: status.register(Linear::new(16, 16)),
+            lin3: status.register(Linear::new(16, 16)),
+            lin4: status.register(Linear::new(16, 1)),
+            dropout: status.register(Dropout::new(0.0001)),
             status,
         }
     }
@@ -41,93 +43,64 @@ impl NeuralNetwork {
         U: Gradient<Dim = Ix2> + Backward + Overwrite,
     {
         let out1 = self.lin1.forward(input).relu();
-        let out2 = self.dropout1.forward(out1).relu();
-        let out3 = self.lin2.forward(out2).relu();
-        self.lin3.forward(out3)
+        let out2 = self.lin2.forward(out1).relu();
+        let out3 = self.lin3.forward(out2).relu();
+        let out4 = self.dropout.forward(out3).relu();
+        self.lin4.forward(out4)
     }
-}
-
-fn foo() {
-    let model = NeuralNetwork::new();
-    let optimizer = optim::SGD::new(model.parameters(), 0.000000001, optim::L2::new(0.0));
-
-    model.status.train();
-
-    // let data = [[10.0, 10.0, 3.0], [3.0, 5.0, 7.0], [2.0, 4.0, 8.0]];
-    let mut rng = rand::thread_rng();
-    let mut data = vec![];
-    for _ in 0..200 {
-        let i: f32 = rng.gen_range(1.0..10.0);
-        data.push((i, i * i));
-    }
-
-    let mut get_row = || {
-        let i = rng.gen_range(0..data.len());
-        let row = &data[i % data.len()];
-        let inputs = vec![row.0];
-        let output = vec![row.1];
-        (inputs, output)
-    };
-
-    // println!("{:#?}", model.parameters());
-
-    // Trains the model.
-    let n = 200;
-    let mut tot_loss = f32::INFINITY;
-    while tot_loss / n as f32 > 0.01 {
-        tot_loss = 0.0;
-        for _ in 0..n {
-            let (inputs1, output1) = get_row();
-            let (inputs2, output2) = get_row();
-            // println!("row: {:#?}", row);
-            let mut both_inputs = vec![];
-            both_inputs.extend_from_slice(&inputs1);
-            both_inputs.extend_from_slice(&inputs2);
-            let mut both_outputs = vec![];
-            both_outputs.extend_from_slice(&output1);
-            both_outputs.extend_from_slice(&output2);
-            let input_array = Array2::from_shape_vec((2, 1), both_inputs).unwrap();
-            let output_array = Array2::from_shape_vec((2, 1), both_outputs).unwrap();
-
-            let input = neuronika::from_ndarray(input_array);
-            let output = neuronika::from_ndarray(output_array);
-
-            let result = model.forward(input);
-
-            let loss = loss::mse_loss(result.clone(), output.clone(), loss::Reduction::Mean);
-            loss.forward();
-            loss.backward(1.0);
-            tot_loss += loss.data()[()];
-            optimizer.step();
-        }
-        println!("Loss! {}", tot_loss / n as f32);
-    }
-
-    model.status.eval();
-
-    let run_test = || {
-        let test_input = Array2::from_shape_vec((2, 1), vec![3.5, 2.5]).unwrap();
-        let input = neuronika::from_ndarray(test_input);
-        let output = model.forward(input);
-        let empty_output = Array2::from_shape_vec((2, 1), vec![0.0, 0.0]).unwrap();
-        let loss = loss::mse_loss(
-            output.clone(),
-            neuronika::from_ndarray(empty_output.clone()),
-            loss::Reduction::Mean,
-        );
-
-        loss.forward();
-
-        println!("{:#?}", output.data());
-    };
-    run_test();
-    run_test();
-    run_test();
-    run_test();
-    run_test();
-    run_test();
 }
 
 fn main() {
-    foo();
+    let mut data = DataLoader::default()
+        .with_labels(&[24])
+        .with_delimiter(',')
+        .from_csv("2x2_training_data.csv", 24, 1);
+
+    let model = NeuralNetwork::new();
+
+    // let optimizer = optim::SGD::new(model.parameters(), 0.00001, optim::L2::new(0.00));
+    let optimizer = optim::Adam::new(
+        model.parameters(),
+        0.00003,
+        (0.9, 0.999),
+        optim::L2::new(0.000005),
+        1e-8,
+    );
+
+    model.status.train();
+    for epoch in 0..200 {
+        let batched_data = data.shuffle().batch(16).drop_last();
+        let mut total_loss: f32 = 0.0;
+
+        for (input_array, target_array) in batched_data {
+            let input = neuronika::from_ndarray(input_array.to_owned());
+            let target = neuronika::from_ndarray(target_array.to_owned());
+
+            let result = model.forward(input);
+
+            let loss = loss::mse_loss(result.clone(), target.clone(), loss::Reduction::Mean);
+            loss.forward();
+            total_loss += loss.data().mean().unwrap();
+            // println!("Data! {:#?}", result.data());
+            loss.backward(1.0);
+            optimizer.step();
+        }
+
+        println!("Loss for epoch {} : {} ", epoch, total_loss);
+    }
+
+    model.status.eval();
+    let entries: Vec<_> = data.shuffle().batch(1).into_iter().collect();
+
+    let (input_array, target_array) = entries[0];
+    let input = neuronika::from_ndarray(input_array.to_owned());
+    let target = neuronika::from_ndarray(target_array.to_owned());
+    let result = model.forward(input);
+
+    println!("row! {:#?} {:#?}", input_array, target_array);
+
+    let loss = loss::mse_loss(result.clone(), target.clone(), loss::Reduction::Mean);
+    loss.forward();
+    println!("Loss! {:#?}", loss.data());
+    println!("Data! {:#?}", result.data());
 }

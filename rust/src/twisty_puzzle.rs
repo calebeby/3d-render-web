@@ -340,6 +340,16 @@ impl TwistyPuzzle {
             .collect()
     }
 
+    pub fn get_derived_state_from_turns_iter<'a>(
+        &self,
+        previous_state: &PuzzleState,
+        turns: impl Iterator<Item = &'a String>,
+    ) -> PuzzleState {
+        turns.fold(previous_state.clone(), |state, turn| {
+            self.get_derived_state(&state, &turn)
+        })
+    }
+
     #[inline]
     pub fn turns_iter(&self) -> impl Iterator<Item = &String> + '_ {
         self.turns.iter().map(|turn| turn.0)

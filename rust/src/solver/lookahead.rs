@@ -1,6 +1,3 @@
-use rand::{thread_rng, Rng};
-use web_sys::console;
-
 use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
 
 use super::Solver;
@@ -73,17 +70,9 @@ impl Solver for LookaheadSolver {
                     new_fringe.push(new_state_with_score);
                 }
             }
-            fringe = new_fringe
+            fringe = new_fringe;
         }
 
-        if best.initial_turn.is_none() {
-            console::log_1(&"Random turn!".into());
-            let mut rng = thread_rng();
-            let i = rng.gen_range(0..num_turns);
-            return Some(self.turns[i].clone());
-        }
-
-        console::log_1(&format!("Fringe len: {}", fringe.len()).into());
         Some(self.turns[best.initial_turn?].clone())
     }
 }
