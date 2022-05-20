@@ -12,7 +12,7 @@ use std::rc::Rc;
 use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
 use crate::vector3d::Vector3D;
 use polyhedron::{Face, Polyhedron};
-use solver::{LookaheadSolver, OneMoveSolver, Solver};
+use solver::{LookaheadSolver, Solver};
 use twisty_puzzle::{PieceFace, PuzzleState};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -77,6 +77,7 @@ fn compute_camera_position_from_orbit(
 
 struct State {
     solver: LookaheadSolver,
+    is_solving: bool,
     puzzle_state: PuzzleState,
     puzzle: TwistyPuzzle,
     turn_queue: VecDeque<String>,
@@ -115,7 +116,7 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let tetrahedron = || Polyhedron::generate(3, 3);
+    let tetrahedron = Polyhedron::generate(3, 3);
     let cube = Polyhedron::generate(4, 3);
     let octahedron = Polyhedron::generate(3, 4);
     let dodecahedron = Polyhedron::generate(5, 3);
@@ -128,6 +129,17 @@ fn init() -> Result<(), JsValue> {
                 .faces
                 .iter()
                 .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.33), TAU / 5.0))
+                .collect::<Vec<_>>(),
+        )
+    };
+
+    let starminx = || {
+        TwistyPuzzle::new(
+            &dodecahedron,
+            &dodecahedron
+                .faces
+                .iter()
+                .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.75), TAU / 5.0))
                 .collect::<Vec<_>>(),
         )
     };
@@ -180,6 +192,74 @@ fn init() -> Result<(), JsValue> {
         )
     };
 
+    let compy_cube = || {
+        TwistyPuzzle::new(
+            &cube,
+            &cube
+                .vertices
+                .iter()
+                .map(|vertex| {
+                    let plane = Plane {
+                        point: *vertex,
+                        normal: *vertex,
+                    };
+                    CutDefinition::new_infer_name(plane.offset(-0.45), TAU / 3.0)
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+
+    let pentultimate = || {
+        TwistyPuzzle::new(
+            &dodecahedron,
+            &dodecahedron
+                .vertices
+                .iter()
+                .map(|vertex| {
+                    let plane = Plane {
+                        point: *vertex,
+                        normal: *vertex,
+                    };
+                    CutDefinition::new_infer_name(plane.offset(-0.1), TAU / 3.0)
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+
+    let dino_starminx = || {
+        TwistyPuzzle::new(
+            &dodecahedron,
+            &dodecahedron
+                .vertices
+                .iter()
+                .map(|vertex| {
+                    let plane = Plane {
+                        point: *vertex,
+                        normal: *vertex,
+                    };
+                    CutDefinition::new_infer_name(plane.offset(-0.3), TAU / 3.0)
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+
+    let pyraminx_thing = || {
+        TwistyPuzzle::new(
+            &tetrahedron,
+            &tetrahedron
+                .vertices
+                .iter()
+                .map(|vertex| {
+                    let plane = Plane {
+                        point: *vertex,
+                        normal: *vertex,
+                    };
+                    CutDefinition::new_infer_name(plane.offset(-0.5), TAU / 3.0)
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+
     let skewb_diamond = || {
         TwistyPuzzle::new(
             &octahedron,
@@ -190,12 +270,13 @@ fn init() -> Result<(), JsValue> {
         )
     };
 
-    let puzzle = megaminx();
+    let puzzle = pyraminx_thing();
 
     let puzzle_state = puzzle.get_initial_state();
 
     let state = Rc::new(RefCell::new(State {
-        solver: LookaheadSolver::new(&puzzle),
+        solver: LookaheadSolver::new(&puzzle, 7),
+        is_solving: false,
         puzzle,
         puzzle_state,
         turn_queue: VecDeque::new(),
@@ -246,6 +327,19 @@ fn init() -> Result<(), JsValue> {
         }
     }
 
+    fn solve_next_step(state: &mut State) -> bool {
+        let turn_name = state
+            .solver
+            .get_next_move(&state.puzzle, &state.puzzle_state);
+        if let Some(turn_name) = turn_name {
+            state.turn_queue.push_back(turn_name);
+            true
+        } else {
+            state.is_solving = false;
+            false
+        }
+    }
+
     {
         let solve_button = document
             .create_element("button")?
@@ -259,11 +353,7 @@ fn init() -> Result<(), JsValue> {
         let height = height.clone();
         let handle_click = move || {
             let mut state = state.borrow_mut();
-            let turn_name = state
-                .solver
-                .get_next_move(&state.puzzle, &state.puzzle_state);
-            if let Some(turn_name) = turn_name {
-                state.turn_queue.push_back(turn_name);
+            if solve_next_step(&mut state) {
                 render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
             }
         };
@@ -287,12 +377,15 @@ fn init() -> Result<(), JsValue> {
         let height = height.clone();
         let handle_click = move || {
             let mut state = state.borrow_mut();
-            let turns: VecDeque<_> = state
-                .solver
-                .next_move_iter(&state.puzzle, &state.puzzle_state)
-                .collect();
-            state.turn_queue = turns;
-            render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
+            state.is_solving = true;
+            solve_next_step(&mut state);
+            // let turns: VecDeque<_> = state
+            //     .solver
+            //     .next_move_iter(&state.puzzle, &state.puzzle_state)
+            //     .take(200)
+            //     .collect();
+            // state.turn_queue = turns;
+            // render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
         };
 
         let click_listener = Closure::wrap(Box::new(handle_click) as Box<dyn FnMut()>);
@@ -430,6 +523,9 @@ fn init() -> Result<(), JsValue> {
                         .get_derived_state(&state.puzzle_state, &state.turn_queue[0]);
                     state.turn_queue.pop_front();
                     state.turn_progress = 0.0;
+                    if state.is_solving && state.turn_queue.is_empty() {
+                        solve_next_step(&mut state);
+                    }
                 } else {
                     state.turn_progress += 0.02;
                 }

@@ -5,7 +5,8 @@ pub use lookahead::LookaheadSolver;
 pub use simple_one_move::OneMoveSolver;
 
 pub trait Solver {
-    fn new(puzzle: &TwistyPuzzle) -> Self
+    type Opts;
+    fn new(puzzle: &TwistyPuzzle, opts: Self::Opts) -> Self
     where
         Self: Sized;
     fn get_next_move(&self, puzzle: &TwistyPuzzle, state: &PuzzleState) -> Option<String>;
@@ -13,7 +14,7 @@ pub trait Solver {
         &'a self,
         puzzle: &'a TwistyPuzzle,
         state: &PuzzleState,
-    ) -> SolveIterator<'a>
+    ) -> SolveIterator<'a, Self::Opts>
     where
         Self: Sized,
     {
@@ -25,13 +26,13 @@ pub trait Solver {
     }
 }
 
-pub struct SolveIterator<'a> {
+pub struct SolveIterator<'a, Opts> {
     puzzle: &'a TwistyPuzzle,
     puzzle_state: PuzzleState,
-    solver: &'a dyn Solver,
+    solver: &'a dyn Solver<Opts = Opts>,
 }
 
-impl Iterator for SolveIterator<'_> {
+impl<Opts> Iterator for SolveIterator<'_, Opts> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {

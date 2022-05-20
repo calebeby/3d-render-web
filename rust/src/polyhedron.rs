@@ -58,6 +58,7 @@ impl Face {
 #[derive(Debug)]
 pub struct Polyhedron {
     pub faces: Vec<Face>,
+    pub vertices: Vec<Vector3D>,
 }
 
 impl Polyhedron {
@@ -79,6 +80,8 @@ impl Polyhedron {
         // sin(theta/2) = (edge_length / 2) / vertex_to_face_center
         let vertex_to_face_center = (edge_length / 2.0) / (angle_between_vertices / 2.0).sin();
 
+        let mut vertices = vec![];
+
         // Base polygon
         for i in 0..p {
             let rotation_amount = angle_between_vertices * i as f64;
@@ -94,10 +97,11 @@ impl Polyhedron {
         let mut incomplete_edges: VecDeque<QueuedEdge> = VecDeque::new();
         let mut faces = vec![bottom_face];
         for edge in faces[0].edges_iter() {
+            vertices.push(edge.0);
             incomplete_edges.push_back(QueuedEdge {
                 edge,
                 face_index: 0,
-            })
+            });
         }
 
         while let Some(queued_edge) = incomplete_edges.pop_front() {
@@ -123,17 +127,20 @@ impl Polyhedron {
                     // Remove the previously-unmatched edge from incomplete_edges
                     incomplete_edges.remove(matching_existing_edge);
                 } else {
+                    if !vertices.iter().any(|v| v.approx_equals(&edge.0)) {
+                        vertices.push(edge.0);
+                    }
                     // The edge on the new face does not match an existing unmatched edge
                     incomplete_edges.push_back(QueuedEdge {
                         edge,
                         face_index: new_face_index,
-                    })
+                    });
                 }
             }
             faces.push(new_face);
         }
 
-        Polyhedron { faces }
+        Polyhedron { faces, vertices }
     }
 }
 

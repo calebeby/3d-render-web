@@ -340,6 +340,7 @@ impl TwistyPuzzle {
             .collect()
     }
 
+    #[inline]
     pub fn turns_iter(&self) -> impl Iterator<Item = &String> + '_ {
         self.turns.iter().map(|turn| turn.0)
     }

@@ -5,7 +5,8 @@ use super::Solver;
 pub struct OneMoveSolver {}
 
 impl Solver for OneMoveSolver {
-    fn new(_puzzle: &TwistyPuzzle) -> Self {
+    type Opts = ();
+    fn new(_puzzle: &TwistyPuzzle, _opts: Self::Opts) -> Self {
         Self {}
     }
 
