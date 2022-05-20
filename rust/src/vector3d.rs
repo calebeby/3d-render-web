@@ -1,5 +1,5 @@
 use crate::quaternion::Quaternion;
-use crate::Ray;
+use crate::ray::Ray;
 
 #[derive(Copy, Clone)]
 pub struct Vector3D {

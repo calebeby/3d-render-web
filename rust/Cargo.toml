@@ -8,6 +8,10 @@ edition = "2018"
 name = "train"
 path = "src/train.rs"
 
+[[bin]]
+name = "gen-train"
+path = "src/generate_training_data.rs"
+
 [lib]
 crate-type = ["cdylib"]
 

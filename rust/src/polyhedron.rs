@@ -1,8 +1,7 @@
-use crate::{vector3d::Vector3D, Plane};
-use std::{
-    collections::VecDeque,
-    f64::consts::{PI, TAU},
-};
+use crate::vector3d::Vector3D;
+use crate::plane::Plane;
+use std::collections::VecDeque;
+use std::f64::consts::{PI, TAU};
 
 #[derive(Debug, Clone)]
 pub struct Face {

@@ -7,6 +7,7 @@
     "build-rust": "rm -rf rust/pkg && cd rust && wasm-pack build --target web --release",
     "build-rust:dev": "rm -rf rust/pkg && cd rust && wasm-pack build --target web --dev",
     "train": "cd rust && cargo run --bin train --features=serialize",
+    "gen-train": "cd rust && cargo run --bin gen-train --features=serialize",
     "preview": "vite preview"
   },
   "devDependencies": {

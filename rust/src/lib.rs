@@ -1,6 +1,8 @@
+mod plane;
 mod polyhedron;
 mod puzzles;
 mod quaternion;
+mod ray;
 mod solver;
 mod twisty_puzzle;
 mod vector3d;
@@ -9,6 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+use crate::plane::Plane;
 use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
 use polyhedron::Face;
@@ -586,33 +589,4 @@ impl Camera {
 struct FaceWithColor<'a> {
     face: &'a Face,
     color: Color,
-}
-
-#[derive(Debug)]
-pub struct Ray {
-    point: Vector3D,
-    direction: Vector3D,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Plane {
-    point: Vector3D,
-    normal: Vector3D,
-}
-
-impl Plane {
-    pub fn intersection(&self, ray: &Ray) -> Vector3D {
-        let diff = &ray.point - &self.point;
-        let prod1 = diff.dot(&self.normal);
-        let prod2 = ray.direction.dot(&self.normal);
-        let prod3 = prod1 / prod2;
-        &ray.point - &(&ray.direction * prod3)
-    }
-    pub fn offset(&self, offset: f64) -> Plane {
-        let offset_vector = offset * self.normal.to_unit_vector();
-        Plane {
-            point: &self.point + &offset_vector,
-            normal: self.normal,
-        }
-    }
 }

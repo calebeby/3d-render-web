@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use rand::distributions::Uniform;
 use rand::Rng;
 
+use crate::plane::Plane;
 use crate::polyhedron::{Face, Polyhedron};
+use crate::ray::Ray;
 use crate::vector3d::Vector3D;
-use crate::{Plane, Ray};
 
 const CUT_PLANE_THICKNESS: f64 = 0.005;
 

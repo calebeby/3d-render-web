@@ -1,8 +1,8 @@
 use std::f64::consts::TAU;
 
+use crate::plane::Plane;
 use crate::polyhedron::Polyhedron;
 use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
-use crate::Plane;
 
 fn tetrahedron() -> Polyhedron {
     Polyhedron::generate(3, 3)
