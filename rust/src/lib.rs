@@ -287,11 +287,11 @@ fn init() -> Result<(), JsValue> {
         let height = height.clone();
         let handle_click = move || {
             let mut state = state.borrow_mut();
-            let mut puzzle_state = state.puzzle_state.clone();
-            while let Some(turn_name) = state.solver.get_next_move(&state.puzzle, &puzzle_state) {
-                puzzle_state = state.puzzle.get_derived_state(&puzzle_state, &turn_name);
-                state.turn_queue.push_back(turn_name);
-            }
+            let turns: VecDeque<_> = state
+                .solver
+                .next_move_iter(&state.puzzle, &state.puzzle_state)
+                .collect();
+            state.turn_queue = turns;
             render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
         };
 
@@ -561,8 +561,8 @@ fn render(
         .fill_text(
             &format!(
                 "{:.1}% solved",
-                state.puzzle.get_num_solved_faces(&state.puzzle_state) as f64
-                    / state.puzzle.get_num_faces() as f64
+                state.puzzle.get_num_solved_pieces(&state.puzzle_state) as f64
+                    / state.puzzle.get_num_pieces() as f64
                     * 100.0
             ),
             10.0,

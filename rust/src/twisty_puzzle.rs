@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use rand::distributions::Uniform;
 use rand::Rng;
-use wasm_bindgen::UnwrapThrowExt;
 use web_sys::console;
 
 use crate::polyhedron::{Face, Polyhedron};
