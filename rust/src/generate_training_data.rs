@@ -24,7 +24,7 @@ struct Record {
 
 fn main() {
     let puzzle = puzzles::rubiks_cube_2x2();
-    let depth = 12;
+    let depth = 14;
 
     let solver = LookaheadSolver::new(&puzzle, depth);
     let mut rng = thread_rng();
@@ -39,7 +39,7 @@ fn main() {
             .from_writer(vec![]);
         println!("\n\niteration {}", i);
 
-        let scramble_turns = rng.gen_range(1..=20);
+        let scramble_turns = rng.gen_range(20..=30);
 
         let initial_state = puzzle.scramble(&puzzle.get_initial_state(), scramble_turns);
         println!(
@@ -50,7 +50,7 @@ fn main() {
         let turns: Vec<_> = solver.next_move_iter(&puzzle, &initial_state).collect();
         println!("turns: {:?}", turns);
         println!(
-            "scramble: {} turns, solve: turns: {}",
+            "scramble: {} turns, solve: {} turns",
             scramble_turns,
             turns.len()
         );
@@ -63,10 +63,23 @@ fn main() {
 
         csv_writer
             .serialize(Record {
-                scramble: initial_state,
+                scramble: initial_state.clone(),
                 turns_to_solve: turns.len(),
             })
             .unwrap();
+
+        let mut num_turns_left = turns.len();
+        let mut state = initial_state;
+        for turn in &turns {
+            state = puzzle.get_derived_state(&state, &turn);
+            num_turns_left -= 1;
+            csv_writer
+                .serialize(Record {
+                    scramble: state.clone(),
+                    turns_to_solve: num_turns_left,
+                })
+                .unwrap();
+        }
         file.write(&csv_writer.into_inner().unwrap()).unwrap();
     }
 }
