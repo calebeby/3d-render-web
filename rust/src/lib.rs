@@ -12,10 +12,13 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::plane::Plane;
+use crate::solver::{
+    FullSearchSolver, FullSearchSolverOpts, LookaheadSolver, LookaheadSolverOpts, ScrambleSolver,
+    Solver,
+};
 use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
 use polyhedron::Face;
-use solver::{LookaheadSolver, Solver};
 use twisty_puzzle::{PieceFace, PuzzleState};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -78,11 +81,12 @@ fn compute_camera_position_from_orbit(
     }
 }
 
-struct State {
-    solver: LookaheadSolver,
+struct State<T: ScrambleSolver> {
+    solver: Solver<T>,
+    scramble_solver: Option<T>,
     is_solving: bool,
     puzzle_state: PuzzleState,
-    puzzle: TwistyPuzzle,
+    puzzle: Rc<TwistyPuzzle>,
     turn_queue: VecDeque<String>,
     turn_progress: f64,
 }
@@ -119,17 +123,18 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let puzzle = puzzles::pyraminx_thing();
+    let puzzle = Rc::new(puzzles::pyraminx_thing());
 
     let puzzle_state = puzzle.get_initial_state();
 
-    let state = Rc::new(RefCell::new(State {
-        solver: LookaheadSolver::new(&puzzle, 7),
+    let state = Rc::new(RefCell::new(State::<FullSearchSolver> {
+        solver: Solver::new(puzzle.clone(), FullSearchSolverOpts { depth: 8 }),
         is_solving: false,
         puzzle,
         puzzle_state,
         turn_queue: VecDeque::new(),
         turn_progress: 0.0,
+        scramble_solver: None,
     }));
 
     let width = Rc::new(Cell::new(canvas.client_width()));
@@ -176,10 +181,15 @@ fn init() -> Result<(), JsValue> {
         }
     }
 
-    fn solve_next_step(state: &mut State) -> bool {
-        let turn_name = state
-            .solver
-            .get_next_move(&state.puzzle, &state.puzzle_state);
+    fn solve_next_step<T: ScrambleSolver>(state: &mut State<T>) -> bool {
+        match &state.scramble_solver {
+            Some(scramble_solver) if *scramble_solver.get_state() == state.puzzle_state => {}
+            _ => {
+                state.scramble_solver = Some(state.solver.solve(state.puzzle_state.clone()));
+            }
+        };
+        let scramble_solver = state.scramble_solver.as_mut().unwrap();
+        let turn_name = scramble_solver.next();
         if let Some(turn_name) = turn_name {
             state.turn_queue.push_back(turn_name);
             true
@@ -385,8 +395,8 @@ fn init() -> Result<(), JsValue> {
     Ok(())
 }
 
-fn render(
-    state: &State,
+fn render<T: ScrambleSolver>(
+    state: &State<T>,
     canvas_ctx: &web_sys::CanvasRenderingContext2d,
     width: i32,
     height: i32,

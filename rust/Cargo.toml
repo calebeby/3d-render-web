@@ -28,6 +28,7 @@ neuronika = {version = "0.2.0", features = ["serialize"]}
 serde = {version = "1.0.137", features = ["derive"]}
 rand = "0.8.5"
 csv = "1.1"
+stack-vec = "0.1.0"
 
 [dependencies.web-sys]
 version = "0.3.4"

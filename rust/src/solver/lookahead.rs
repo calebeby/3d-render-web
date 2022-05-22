@@ -1,30 +1,50 @@
+use std::rc::Rc;
+
 use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
 
-use super::Solver;
+use super::ScrambleSolver;
 
 pub struct LookaheadSolver {
-    depth: usize,
+    state: PuzzleState,
+    puzzle: Rc<TwistyPuzzle>,
     turns: Vec<String>,
+    opts: LookaheadSolverOpts,
 }
 
-impl Solver for LookaheadSolver {
-    type Opts = usize;
-    fn new(puzzle: &TwistyPuzzle, depth: Self::Opts) -> Self {
+#[derive(Clone)]
+pub struct LookaheadSolverOpts {
+    pub depth: usize,
+}
+
+impl ScrambleSolver for LookaheadSolver {
+    type Opts = LookaheadSolverOpts;
+
+    fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, opts: Self::Opts) -> Self {
         Self {
-            depth,
+            state: initial_state,
             turns: puzzle.turns_iter().cloned().collect(),
+            puzzle,
+            opts,
         }
     }
 
-    fn get_next_move(&self, puzzle: &TwistyPuzzle, state: &PuzzleState) -> Option<String> {
+    fn get_state(&self) -> &PuzzleState {
+        &self.state
+    }
+}
+
+impl Iterator for LookaheadSolver {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let initial_state = StateWithScore {
-            puzzle_state: state.clone(),
-            score: puzzle.get_num_solved_pieces(state),
+            puzzle_state: self.state.clone(),
+            score: self.puzzle.get_num_solved_pieces(&self.state),
             initial_turn: None,
             most_recent_turn: None,
         };
         let mut fringe: Vec<StateWithScore> = vec![initial_state.clone()];
-        let solved_score = puzzle.get_num_pieces();
+        let solved_score = self.puzzle.get_num_pieces();
 
         if initial_state.score == solved_score {
             return None;
@@ -34,7 +54,7 @@ impl Solver for LookaheadSolver {
         let num_turns = self.turns.len();
 
         let mut i = 0;
-        while i < self.depth || (best.initial_turn.is_none() && i < self.depth + 1) {
+        while i < self.opts.depth || (best.initial_turn.is_none() && i < self.opts.depth + 1) {
             i += 1;
             let mut new_fringe: Vec<StateWithScore> = Vec::with_capacity(fringe.len() * num_turns);
             for state in &fringe {
@@ -50,8 +70,10 @@ impl Solver for LookaheadSolver {
                             continue;
                         }
                     }
-                    let new_state = puzzle.get_derived_state(&state.puzzle_state, turn_name);
-                    let new_score = puzzle.get_num_solved_pieces(&new_state);
+                    let new_state = self
+                        .puzzle
+                        .get_derived_state(&state.puzzle_state, turn_name);
+                    let new_score = self.puzzle.get_num_solved_pieces(&new_state);
                     let new_state_with_score = StateWithScore {
                         initial_turn: match state.initial_turn {
                             None => Some(turn_index),
@@ -72,6 +94,8 @@ impl Solver for LookaheadSolver {
             }
             fringe = new_fringe;
         }
+
+        self.state = best.puzzle_state;
 
         Some(self.turns[best.initial_turn?].clone())
     }
