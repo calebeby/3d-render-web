@@ -39,8 +39,8 @@ type ColorIndex = usize;
 pub struct PieceFace {
     pub face: Face,
     pub color_index: ColorIndex,
-    /// List of cut names that move this face
-    affecting_turn_names: Vec<String>,
+    /// List of turn indices that move this face
+    affecting_turn_indices: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -59,7 +59,8 @@ struct Turn {
 
 pub struct TwistyPuzzle {
     faces: Vec<PieceFace>,
-    turns: HashMap<String, Turn>,
+    turns: Vec<Turn>,
+    turn_names: Vec<String>,
     // Each piece is a vector of its face indexes
     pieces: Vec<Vec<usize>>,
 }
@@ -86,7 +87,7 @@ impl TwistyPuzzle {
             .map(|(color_index, face)| PieceFace {
                 face: face.clone(),
                 color_index: color_index as _,
-                affecting_turn_names: vec![],
+                affecting_turn_indices: vec![],
             })
             .collect();
         for (turn_name, cut) in cuts_with_names {
@@ -106,13 +107,15 @@ impl TwistyPuzzle {
                     rotation_axis_point: cut.plane.point,
                 },
             ));
+            let forwards_turn_index = physical_turns.len() - 1;
+            let reverse_turn_index = physical_turns.len() - 2;
             let mut updated_faces: Vec<PieceFace> = vec![];
             let cut_plane_outer = cut.plane.offset(CUT_PLANE_THICKNESS);
             let cut_plane_inner = cut.plane.offset(-CUT_PLANE_THICKNESS);
             for PieceFace {
                 face,
                 color_index,
-                affecting_turn_names,
+                affecting_turn_indices,
             } in &faces
             {
                 let mut vertices_above_plane: Vec<Vector3D> = vec![];
@@ -154,15 +157,15 @@ impl TwistyPuzzle {
                     }
                 }
                 if vertices_above_plane.len() > 2 {
-                    let mut new_affecting_turn_names = affecting_turn_names.clone();
-                    new_affecting_turn_names.push(turn_name.to_string());
-                    new_affecting_turn_names.push(inverted_turn_name.to_string());
+                    let mut new_affecting_turn_indices = affecting_turn_indices.clone();
+                    new_affecting_turn_indices.push(forwards_turn_index);
+                    new_affecting_turn_indices.push(reverse_turn_index);
                     updated_faces.push(PieceFace {
                         face: Face {
                             vertices: vertices_above_plane,
                         },
                         color_index: *color_index,
-                        affecting_turn_names: new_affecting_turn_names,
+                        affecting_turn_indices: new_affecting_turn_indices,
                     });
                 }
                 if vertices_below_plane.len() > 2 {
@@ -171,7 +174,7 @@ impl TwistyPuzzle {
                             vertices: vertices_below_plane,
                         },
                         color_index: *color_index,
-                        affecting_turn_names: affecting_turn_names.clone(),
+                        affecting_turn_indices: affecting_turn_indices.clone(),
                     });
                 }
             }
@@ -181,7 +184,7 @@ impl TwistyPuzzle {
         // Pieces decides which physical faces are attached together
         let mut pieces_map: HashMap<_, Vec<usize>> = HashMap::new();
         for (face_i, face) in faces.iter().enumerate() {
-            let mut affecting_turn_names = face.affecting_turn_names.clone();
+            let mut affecting_turn_names = face.affecting_turn_indices.clone();
             affecting_turn_names.sort();
             match pieces_map.get_mut(&affecting_turn_names) {
                 Some(faces) => faces.push(face_i),
@@ -199,14 +202,15 @@ impl TwistyPuzzle {
 
         // try out each of the turns to determine the symmetries between pieces
         // and which faces map to which faces after each turn
-        let turns: HashMap<_, _> = physical_turns
+        let (turn_names, turns): (Vec<_>, Vec<_>) = physical_turns
             .into_iter()
-            .map(|(turn_name, physical_turn)| {
+            .enumerate()
+            .map(|(turn_index, (turn_name, physical_turn))| {
                 let face_map: Vec<_> = faces
                     .iter()
                     .enumerate()
                     .map(|(i, face)| {
-                        if face.affecting_turn_names.contains(&turn_name) {
+                        if face.affecting_turn_indices.contains(&turn_index) {
                             let original_location = &face_centers[i];
                             let new_location = original_location.rotate_about_axis(
                                 physical_turn.rotation_axis,
@@ -235,11 +239,12 @@ impl TwistyPuzzle {
                 };
                 (turn_name, turn)
             })
-            .collect();
+            .unzip();
 
         Self {
             faces,
             turns,
+            turn_names,
             pieces,
         }
     }
@@ -292,7 +297,7 @@ impl TwistyPuzzle {
             .enumerate()
             .map(|(i, piece_face)| PieceFace {
                 face: piece_face.face.clone(),
-                affecting_turn_names: piece_face.affecting_turn_names.clone(),
+                affecting_turn_indices: piece_face.affecting_turn_indices.clone(),
                 color_index: puzzle_state[i],
             })
             .collect()
@@ -300,20 +305,17 @@ impl TwistyPuzzle {
 
     pub fn get_physically_turned_faces(
         &self,
-        turn_name: &str,
+        turn_index: usize,
         puzzle_state: &PuzzleState,
         interpolate_amount: f64,
     ) -> Vec<PieceFace> {
-        let cut = &self.turns[turn_name];
+        let cut = &self.turns[turn_index];
         let new_faces = self
             .faces
             .iter()
             .enumerate()
             .map(|(i, piece_face)| PieceFace {
-                face: if piece_face
-                    .affecting_turn_names
-                    .contains(&turn_name.to_string())
-                {
+                face: if piece_face.affecting_turn_indices.contains(&turn_index) {
                     piece_face.face.rotate_about_axis(
                         interpolate_amount * cut.physical_turn.rotation_axis,
                         cut.physical_turn.rotation_axis_point,
@@ -321,7 +323,7 @@ impl TwistyPuzzle {
                 } else {
                     piece_face.face.clone()
                 },
-                affecting_turn_names: piece_face.affecting_turn_names.clone(),
+                affecting_turn_indices: piece_face.affecting_turn_indices.clone(),
                 color_index: puzzle_state[i],
             })
             .collect();
@@ -332,8 +334,12 @@ impl TwistyPuzzle {
         self.faces.iter().map(|face| face.color_index).collect()
     }
 
-    pub fn get_derived_state(&self, previous_state: &PuzzleState, turn_name: &str) -> PuzzleState {
-        let face_map = &self.turns.get(turn_name).unwrap().face_map;
+    pub fn get_derived_state(
+        &self,
+        previous_state: &PuzzleState,
+        turn_index: usize,
+    ) -> PuzzleState {
+        let face_map = &self.turns.get(turn_index).unwrap().face_map;
         face_map
             .iter()
             .map(|old_face_index| previous_state[*old_face_index])
@@ -343,29 +349,28 @@ impl TwistyPuzzle {
     pub fn get_derived_state_from_turns_iter<'a>(
         &self,
         previous_state: &PuzzleState,
-        turns: impl Iterator<Item = &'a String>,
+        turns: impl Iterator<Item = usize>,
     ) -> PuzzleState {
-        turns.fold(previous_state.clone(), |state, turn| {
-            self.get_derived_state(&state, &turn)
+        turns.fold(previous_state.clone(), |state, turn_index| {
+            self.get_derived_state(&state, turn_index)
         })
     }
 
     #[inline]
-    pub fn turns_iter(&self) -> impl Iterator<Item = &String> + '_ {
-        self.turns.iter().map(|turn| turn.0)
+    pub fn turn_names_iter(&self) -> impl Iterator<Item = &String> + '_ {
+        self.turn_names.iter()
     }
 
     pub fn scramble(&self, initial_state: &PuzzleState, limit: u64) -> PuzzleState {
         let mut state = initial_state.clone();
 
-        let all_turns: Vec<_> = self.turns_iter().collect();
+        let num_turns = self.turn_names_iter().count();
 
         let mut rng = rand::thread_rng();
-        let range = Uniform::new(0, all_turns.len());
+        let range = Uniform::new(0, num_turns);
 
         for _ in 0..limit {
-            let turn_name = all_turns[rng.sample(range)];
-            state = self.get_derived_state(&state, turn_name);
+            state = self.get_derived_state(&state, rng.sample(range));
         }
 
         state

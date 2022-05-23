@@ -22,7 +22,7 @@ impl<T: ScrambleSolver> Solver<T> {
     }
 }
 
-pub trait ScrambleSolver: Iterator<Item = String> {
+pub trait ScrambleSolver: Iterator<Item = usize> {
     type Opts: Clone;
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, opts: Self::Opts) -> Self;
     fn get_state(&self) -> &PuzzleState;

@@ -25,8 +25,8 @@ struct Record {
 
 fn main() {
     let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
-    let bfs_depth = 8;
-    let dfs_depth = 12;
+    let bfs_depth = 11;
+    let dfs_depth = 13;
 
     let bfs_solver =
         Solver::<LookaheadSolver>::new(puzzle.clone(), LookaheadSolverOpts { depth: bfs_depth });
@@ -55,11 +55,13 @@ fn main() {
                 * 100.0
         );
         let mut turns: Vec<_> = bfs_solver.solve(initial_state.clone()).collect();
-        let mut end_state = puzzle.get_derived_state_from_turns_iter(&initial_state, turns.iter());
+        let mut end_state =
+            puzzle.get_derived_state_from_turns_iter(&initial_state, turns.iter().cloned());
         if end_state != solved_state {
             println!("falling back to dfs");
             turns = dfs_solver.solve(initial_state.clone()).collect();
-            end_state = puzzle.get_derived_state_from_turns_iter(&initial_state, turns.iter());
+            end_state =
+                puzzle.get_derived_state_from_turns_iter(&initial_state, turns.iter().cloned());
         }
         if end_state != solved_state {
             panic!("not solved");
@@ -86,7 +88,7 @@ fn main() {
         let mut num_turns_left = turns.len();
         let mut state = initial_state;
         for turn in &turns {
-            state = puzzle.get_derived_state(&state, &turn);
+            state = puzzle.get_derived_state(&state, *turn);
             num_turns_left -= 1;
             csv_writer
                 .serialize(Record {

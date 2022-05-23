@@ -7,7 +7,7 @@ use super::ScrambleSolver;
 pub struct FullSearchSolver {
     puzzle: Rc<TwistyPuzzle>,
     state: PuzzleState,
-    solution: VecDeque<String>,
+    solution: VecDeque<usize>,
 }
 
 #[derive(Clone)]
@@ -19,7 +19,7 @@ impl ScrambleSolver for FullSearchSolver {
     type Opts = FullSearchSolverOpts;
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, opts: Self::Opts) -> Self {
-        let turns: Vec<_> = puzzle.turns_iter().collect();
+        let turns: Vec<_> = puzzle.turn_names_iter().collect();
         let mut fringe_stack_max_size = opts.depth + 1;
         let mut fringe_stack: Vec<SolutionToExpand> = vec![SolutionToExpand {
             puzzle_state: initial_state.clone(),
@@ -40,17 +40,15 @@ impl ScrambleSolver for FullSearchSolver {
             };
         }
 
-        let mut old_bests = vec![];
-
         while let Some(solution_to_expand) = fringe_stack.last() {
             if fringe_stack.len() < fringe_stack_max_size {
-                let turn_name = turns[solution_to_expand.turn_index];
-                let derived_state =
-                    puzzle.get_derived_state(&solution_to_expand.puzzle_state, turn_name);
+                let derived_state = puzzle.get_derived_state(
+                    &solution_to_expand.puzzle_state,
+                    solution_to_expand.turn_index,
+                );
                 let score = puzzle.get_num_solved_pieces(&derived_state);
                 let num_moves = fringe_stack.len();
                 if score > best.score || (score == best.score && num_moves < best.num_moves) {
-                    old_bests.push(best);
                     best = BestSolution {
                         num_moves,
                         score,
@@ -58,7 +56,7 @@ impl ScrambleSolver for FullSearchSolver {
                     }
                 }
                 if score == solved_score {
-                    fringe_stack_max_size = fringe_stack.len() - 1;
+                    fringe_stack_max_size = fringe_stack.len();
                 }
                 fringe_stack.push(SolutionToExpand {
                     puzzle_state: derived_state,
@@ -76,7 +74,7 @@ impl ScrambleSolver for FullSearchSolver {
             }
         }
 
-        let solution: VecDeque<_> = best.turns.into_iter().map(|t| turns[t].clone()).collect();
+        let solution: VecDeque<_> = best.turns.into();
 
         Self {
             solution,
@@ -91,11 +89,11 @@ impl ScrambleSolver for FullSearchSolver {
 }
 
 impl Iterator for FullSearchSolver {
-    type Item = String;
+    type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
         let turn = self.solution.pop_front()?;
-        self.state = self.puzzle.get_derived_state(&self.state, &turn);
+        self.state = self.puzzle.get_derived_state(&self.state, turn);
         Some(turn)
     }
 }

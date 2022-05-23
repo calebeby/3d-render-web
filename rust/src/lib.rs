@@ -87,7 +87,7 @@ struct State<T: ScrambleSolver> {
     is_solving: bool,
     puzzle_state: PuzzleState,
     puzzle: Rc<TwistyPuzzle>,
-    turn_queue: VecDeque<String>,
+    turn_queue: VecDeque<usize>,
     turn_progress: f64,
 }
 
@@ -123,12 +123,12 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let puzzle = Rc::new(puzzles::pyraminx_thing());
+    let puzzle = Rc::new(puzzles::pyraminx());
 
     let puzzle_state = puzzle.get_initial_state();
 
-    let state = Rc::new(RefCell::new(State::<FullSearchSolver> {
-        solver: Solver::new(puzzle.clone(), FullSearchSolverOpts { depth: 8 }),
+    let state = Rc::new(RefCell::new(State::<LookaheadSolver> {
+        solver: Solver::new(puzzle.clone(), LookaheadSolverOpts { depth: 7 }),
         is_solving: false,
         puzzle,
         puzzle_state,
@@ -140,27 +140,28 @@ fn init() -> Result<(), JsValue> {
     let width = Rc::new(Cell::new(canvas.client_width()));
     let height = Rc::new(Cell::new(canvas.client_height()));
 
-    let mut cuts_list: Vec<_> = state.borrow().puzzle.turns_iter().cloned().collect();
+    let mut cuts_list: Vec<_> = state
+        .borrow()
+        .puzzle
+        .turn_names_iter()
+        .cloned()
+        .enumerate()
+        .collect();
     cuts_list.sort();
-    for cut_name in cuts_list {
+    for (cut_index, cut_name) in cuts_list {
         let button = document
             .create_element("button")?
             .dyn_into::<web_sys::HtmlButtonElement>()?;
         button.set_inner_text(&cut_name);
         buttons_div.append_child(&button)?;
-        let cut_name = Rc::new(cut_name.clone());
 
         {
-            let cut_name = cut_name.clone();
             let canvas_ctx = canvas_ctx.clone();
             let state = state.clone();
             let width = width.clone();
             let height = height.clone();
             let handle_click = move || {
-                state
-                    .borrow_mut()
-                    .turn_queue
-                    .push_back(cut_name.to_string());
+                state.borrow_mut().turn_queue.push_back(cut_index);
                 render(
                     &state.borrow(),
                     &canvas_ctx,
@@ -189,9 +190,10 @@ fn init() -> Result<(), JsValue> {
             }
         };
         let scramble_solver = state.scramble_solver.as_mut().unwrap();
-        let turn_name = scramble_solver.next();
-        if let Some(turn_name) = turn_name {
-            state.turn_queue.push_back(turn_name);
+        let turn_index = scramble_solver.next();
+        if let Some(turn_index) = turn_index {
+            console::log_1(&format!("turn: {}", turn_index).into());
+            state.turn_queue.push_back(turn_index);
             true
         } else {
             state.is_solving = false;
@@ -369,7 +371,7 @@ fn init() -> Result<(), JsValue> {
                 if state.turn_progress > 1.0 {
                     state.puzzle_state = state
                         .puzzle
-                        .get_derived_state(&state.puzzle_state, &state.turn_queue[0]);
+                        .get_derived_state(&state.puzzle_state, state.turn_queue[0]);
                     state.turn_queue.pop_front();
                     state.turn_progress = 0.0;
                     if state.is_solving && state.turn_queue.is_empty() {
@@ -455,7 +457,7 @@ fn render<T: ScrambleSolver>(
 
     let uncolored_faces = if state.turn_queue.len() > 0 {
         let turned_puzzle = state.puzzle.get_physically_turned_faces(
-            &state.turn_queue[0],
+            state.turn_queue[0],
             &state.puzzle_state,
             state.turn_progress,
         );

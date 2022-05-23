@@ -149,7 +149,7 @@ pub fn dino_starminx() -> TwistyPuzzle {
     )
 }
 
-pub fn pyraminx_thing() -> TwistyPuzzle {
+pub fn pyraminx() -> TwistyPuzzle {
     let tetrahedron = tetrahedron();
     TwistyPuzzle::new(
         &tetrahedron,
@@ -161,7 +161,7 @@ pub fn pyraminx_thing() -> TwistyPuzzle {
                     point: *vertex,
                     normal: *vertex,
                 };
-                CutDefinition::new_infer_name(plane.offset(-0.5), TAU / 3.0)
+                CutDefinition::new_infer_name(plane.offset(-0.53), TAU / 3.0)
             })
             .collect::<Vec<_>>(),
     )

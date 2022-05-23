@@ -22,7 +22,7 @@ impl ScrambleSolver for LookaheadSolver {
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, opts: Self::Opts) -> Self {
         Self {
             state: initial_state,
-            turns: puzzle.turns_iter().cloned().collect(),
+            turns: puzzle.turn_names_iter().cloned().collect(),
             puzzle,
             opts,
         }
@@ -34,7 +34,7 @@ impl ScrambleSolver for LookaheadSolver {
 }
 
 impl Iterator for LookaheadSolver {
-    type Item = String;
+    type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
         let initial_state = StateWithScore {
@@ -72,7 +72,7 @@ impl Iterator for LookaheadSolver {
                     }
                     let new_state = self
                         .puzzle
-                        .get_derived_state(&state.puzzle_state, turn_name);
+                        .get_derived_state(&state.puzzle_state, turn_index);
                     let new_score = self.puzzle.get_num_solved_pieces(&new_state);
                     let new_state_with_score = StateWithScore {
                         initial_turn: match state.initial_turn {
@@ -84,7 +84,7 @@ impl Iterator for LookaheadSolver {
                         score: new_score,
                     };
                     if new_score == solved_score {
-                        return Some(self.turns[new_state_with_score.initial_turn?].clone());
+                        return Some(new_state_with_score.initial_turn?);
                     }
                     if new_score > best.score {
                         best = new_state_with_score.clone();
@@ -97,7 +97,7 @@ impl Iterator for LookaheadSolver {
 
         self.state = best.puzzle_state;
 
-        Some(self.turns[best.initial_turn?].clone())
+        Some(best.initial_turn?)
     }
 }
 

@@ -25,16 +25,17 @@ impl ScrambleSolver for OneMoveSolver {
 }
 
 impl Iterator for OneMoveSolver {
-    type Item = String;
+    type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next_turn = self
             .puzzle
-            .turns_iter()
-            .map(|turn_name| {
-                let next_state = self.puzzle.get_derived_state(&self.state, turn_name);
+            .turn_names_iter()
+            .enumerate()
+            .map(|(turn_index, _turn_name)| {
+                let next_state = self.puzzle.get_derived_state(&self.state, turn_index);
                 let next_state_score = self.puzzle.get_num_solved_pieces(&next_state);
-                (turn_name, next_state_score)
+                (turn_index, next_state_score)
             })
             .max_by_key(|(_, score)| *score);
 
