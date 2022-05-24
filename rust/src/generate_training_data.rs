@@ -38,6 +38,7 @@ fn main() {
     }];
 
     let mut i = 0;
+    let mut num_turns = 0;
     let info = std::cmp::max(depth as isize - 9, 1) as usize;
     while let Some(state_to_expand) = fringe_stack.last() {
         if fringe_stack.len() == info {
@@ -48,12 +49,20 @@ fn main() {
             )
         }
         if fringe_stack.len() < depth + 1 {
+            num_turns += 1;
             let derived_state =
                 puzzle.get_derived_state(&state_to_expand.puzzle_state, state_to_expand.turn_index);
             let num_moves = fringe_stack.len();
             let saved_solution_turns = states.get(&derived_state);
             match saved_solution_turns {
-                Some(saved_solution_turns) if *saved_solution_turns <= num_moves => {}
+                Some(saved_solution_turns) if *saved_solution_turns <= num_moves => {
+                    // If the saved solution is better than the current solution,
+                    // We don't need to expand this state,
+                    // because every derived state will also be more optimally solved
+                    // using the saved solutions than the current solution
+                    increment(&mut fringe_stack, &turns);
+                    continue;
+                }
                 _ => {
                     states.insert(derived_state.clone(), num_moves);
                 }
@@ -63,21 +72,17 @@ fn main() {
                 turn_index: 0,
             })
         } else {
-            while let Some(solution_to_increment) = fringe_stack.last_mut() {
-                if solution_to_increment.turn_index < turns.len() - 1 {
-                    solution_to_increment.turn_index += 1;
-                    break;
-                } else {
-                    fringe_stack.pop();
-                }
-            }
+            increment(&mut fringe_stack, &turns);
         }
     }
 
     println!(
-        "Actual states: {}, Total turn sequences: {}",
+        "Actual states: {},\
+        \nTheoretical total turn sequences: {},\
+        \nActual total turn sequences: {}",
         states.len(),
-        turns.len().pow(depth as _)
+        turns.len().pow(depth as _),
+        num_turns
     );
 
     let mut file = File::create("2x2_training_data.csv").unwrap();
@@ -94,6 +99,17 @@ fn main() {
             .unwrap();
     }
     file.write(&csv_writer.into_inner().unwrap()).unwrap();
+}
+
+fn increment(fringe_stack: &mut Vec<StateToExpand>, turns: &Vec<&String>) {
+    while let Some(solution_to_increment) = fringe_stack.last_mut() {
+        if solution_to_increment.turn_index < turns.len() - 1 {
+            solution_to_increment.turn_index += 1;
+            break;
+        } else {
+            fringe_stack.pop();
+        }
+    }
 }
 
 #[derive(Debug)]
