@@ -24,12 +24,12 @@ struct Record {
 }
 
 fn main() {
-    let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
+    let puzzle = Rc::new(puzzles::pyraminx());
 
     let mut states: HashMap<PuzzleState, usize> = HashMap::new();
     let solved_state = puzzle.get_initial_state();
 
-    let depth = 14;
+    let depth = 11;
 
     let turns: Vec<_> = puzzle.turn_names_iter().collect();
     let mut fringe_stack: Vec<StateToExpand> = vec![StateToExpand {
@@ -39,7 +39,7 @@ fn main() {
 
     let mut i = 0;
     let mut num_turns = 0;
-    let info = std::cmp::max(depth as isize - 9, 1) as usize;
+    let info = std::cmp::max(depth as isize - 6, 1) as usize;
     while let Some(state_to_expand) = fringe_stack.last() {
         if fringe_stack.len() == info {
             i += 1;
@@ -85,7 +85,7 @@ fn main() {
         num_turns
     );
 
-    let mut file = File::create("2x2_training_data.csv").unwrap();
+    let mut file = File::create("training_data/pyraminx.csv").unwrap();
     let mut csv_writer = csv::WriterBuilder::new()
         .has_headers(false)
         .from_writer(vec![]);
