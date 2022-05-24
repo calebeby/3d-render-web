@@ -21,7 +21,7 @@ impl ScrambleSolver for FullSearchSolver {
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, opts: Self::Opts) -> Self {
         let turns: Vec<_> = puzzle.turn_names_iter().collect();
         let mut fringe_stack_max_size = opts.depth + 1;
-        let mut fringe_stack: Vec<SolutionToExpand> = vec![SolutionToExpand {
+        let mut fringe_stack: Vec<StateToExpand> = vec![StateToExpand {
             puzzle_state: initial_state.clone(),
             turn_index: 0,
         }];
@@ -40,12 +40,10 @@ impl ScrambleSolver for FullSearchSolver {
             };
         }
 
-        while let Some(solution_to_expand) = fringe_stack.last() {
+        while let Some(state_to_expand) = fringe_stack.last() {
             if fringe_stack.len() < fringe_stack_max_size {
-                let derived_state = puzzle.get_derived_state(
-                    &solution_to_expand.puzzle_state,
-                    solution_to_expand.turn_index,
-                );
+                let derived_state = puzzle
+                    .get_derived_state(&state_to_expand.puzzle_state, state_to_expand.turn_index);
                 let score = puzzle.get_num_solved_pieces(&derived_state);
                 let num_moves = fringe_stack.len();
                 if score > best.score || (score == best.score && num_moves < best.num_moves) {
@@ -58,7 +56,7 @@ impl ScrambleSolver for FullSearchSolver {
                 if score == solved_score {
                     fringe_stack_max_size = fringe_stack.len();
                 }
-                fringe_stack.push(SolutionToExpand {
+                fringe_stack.push(StateToExpand {
                     puzzle_state: derived_state,
                     turn_index: 0,
                 })
@@ -99,7 +97,7 @@ impl Iterator for FullSearchSolver {
 }
 
 #[derive(Debug)]
-struct SolutionToExpand {
+struct StateToExpand {
     puzzle_state: PuzzleState,
     turn_index: usize,
 }

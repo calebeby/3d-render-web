@@ -7,13 +7,13 @@ mod solver;
 mod twisty_puzzle;
 mod vector3d;
 
+use crate::twisty_puzzle::PuzzleState;
 use csv;
-use rand::thread_rng;
-use rand::Rng;
+
 use serde::Deserialize;
 use serde::Serialize;
-use solver::Solver;
-use solver::{FullSearchSolver, FullSearchSolverOpts, LookaheadSolver, LookaheadSolverOpts};
+use std::collections::HashMap;
+use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
 
@@ -25,78 +25,79 @@ struct Record {
 
 fn main() {
     let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
-    let bfs_depth = 11;
-    let dfs_depth = 13;
 
-    let bfs_solver =
-        Solver::<LookaheadSolver>::new(puzzle.clone(), LookaheadSolverOpts { depth: bfs_depth });
-    let dfs_solver =
-        Solver::<FullSearchSolver>::new(puzzle.clone(), FullSearchSolverOpts { depth: dfs_depth });
-    let mut rng = thread_rng();
-    let mut file = std::fs::OpenOptions::new()
-        .append(true)
-        .open("2x2_training_data.csv")
-        .unwrap();
-
+    let mut states: HashMap<PuzzleState, usize> = HashMap::new();
     let solved_state = puzzle.get_initial_state();
 
-    for i in 0..10000 {
-        let mut csv_writer = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_writer(vec![]);
-        println!("\n\niteration {}", i);
+    let depth = 14;
 
-        let scramble_turns = rng.gen_range(20..=30);
+    let turns: Vec<_> = puzzle.turn_names_iter().collect();
+    let mut fringe_stack: Vec<StateToExpand> = vec![StateToExpand {
+        puzzle_state: solved_state,
+        turn_index: 0,
+    }];
 
-        let initial_state = puzzle.scramble(&solved_state, scramble_turns);
-        println!(
-            "Initial: {:.1}% solved",
-            puzzle.get_num_solved_pieces(&initial_state) as f64 / puzzle.get_num_pieces() as f64
-                * 100.0
-        );
-        let mut turns: Vec<_> = bfs_solver.solve(initial_state.clone()).collect();
-        let mut end_state =
-            puzzle.get_derived_state_from_turns_iter(&initial_state, turns.iter().cloned());
-        if end_state != solved_state {
-            println!("falling back to dfs");
-            turns = dfs_solver.solve(initial_state.clone()).collect();
-            end_state =
-                puzzle.get_derived_state_from_turns_iter(&initial_state, turns.iter().cloned());
+    let mut i = 0;
+    let info = std::cmp::max(depth as isize - 9, 1) as usize;
+    while let Some(state_to_expand) = fringe_stack.last() {
+        if fringe_stack.len() == info {
+            i += 1;
+            println!(
+                "{:.2}%",
+                100.0 * i as f64 / turns.len().pow(info as _) as f64
+            )
         }
-        if end_state != solved_state {
-            panic!("not solved");
+        if fringe_stack.len() < depth + 1 {
+            let derived_state =
+                puzzle.get_derived_state(&state_to_expand.puzzle_state, state_to_expand.turn_index);
+            let num_moves = fringe_stack.len();
+            let saved_solution_turns = states.get(&derived_state);
+            match saved_solution_turns {
+                Some(saved_solution_turns) if *saved_solution_turns <= num_moves => {}
+                _ => {
+                    states.insert(derived_state.clone(), num_moves);
+                }
+            }
+            fringe_stack.push(StateToExpand {
+                puzzle_state: derived_state,
+                turn_index: 0,
+            })
+        } else {
+            while let Some(solution_to_increment) = fringe_stack.last_mut() {
+                if solution_to_increment.turn_index < turns.len() - 1 {
+                    solution_to_increment.turn_index += 1;
+                    break;
+                } else {
+                    fringe_stack.pop();
+                }
+            }
         }
-        println!("turns: {:?}", turns);
-        println!(
-            "scramble: {} turns, solve: {} turns",
-            scramble_turns,
-            turns.len()
-        );
-        println!(
-            "Final:   {:.1}% solved",
-            puzzle.get_num_solved_pieces(&end_state) as f64 / puzzle.get_num_pieces() as f64
-                * 100.0
-        );
+    }
 
+    println!(
+        "Actual states: {}, Total turn sequences: {}",
+        states.len(),
+        turns.len().pow(depth as _)
+    );
+
+    let mut file = File::create("2x2_training_data.csv").unwrap();
+    let mut csv_writer = csv::WriterBuilder::new()
+        .has_headers(false)
+        .from_writer(vec![]);
+
+    for (puzzle_state, turns_to_solve) in states.into_iter() {
         csv_writer
             .serialize(Record {
-                scramble: initial_state.clone(),
-                turns_to_solve: turns.len(),
+                scramble: puzzle_state,
+                turns_to_solve,
             })
             .unwrap();
-
-        let mut num_turns_left = turns.len();
-        let mut state = initial_state;
-        for turn in &turns {
-            state = puzzle.get_derived_state(&state, *turn);
-            num_turns_left -= 1;
-            csv_writer
-                .serialize(Record {
-                    scramble: state.clone(),
-                    turns_to_solve: num_turns_left,
-                })
-                .unwrap();
-        }
-        file.write(&csv_writer.into_inner().unwrap()).unwrap();
     }
+    file.write(&csv_writer.into_inner().unwrap()).unwrap();
+}
+
+#[derive(Debug)]
+struct StateToExpand {
+    puzzle_state: PuzzleState,
+    turn_index: usize,
 }

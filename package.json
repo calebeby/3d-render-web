@@ -6,6 +6,7 @@
     "build": "npm run build-rust && tsc && vite build",
     "build-rust": "rm -rf rust/pkg && cd rust && wasm-pack build --target web --release",
     "build-rust:dev": "rm -rf rust/pkg && cd rust && wasm-pack build --target web --dev",
+    "test": "cd rust && cargo test",
     "train": "cd rust && cargo run --bin train --features=serialize",
     "gen-train": "cd rust && cargo run --bin gen-train --features=serialize --release",
     "preview": "vite preview"

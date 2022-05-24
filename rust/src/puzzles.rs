@@ -177,3 +177,52 @@ pub fn skewb_diamond() -> TwistyPuzzle {
             .collect::<Vec<_>>(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_megaminx() {
+        let puzzle = megaminx();
+        assert_eq!(puzzle.get_num_faces(), 11 * 12);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_rubiks_cube_3x3() {
+        let puzzle = rubiks_cube_3x3();
+        assert_eq!(puzzle.get_num_faces(), 9 * 6);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_rubiks_cube_2x2() {
+        let puzzle = rubiks_cube_2x2();
+        assert_eq!(puzzle.get_num_faces(), 4 * 6);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_pyraminx() {
+        let puzzle = pyraminx();
+        assert_eq!(puzzle.get_num_faces(), 7 * 4);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+}
