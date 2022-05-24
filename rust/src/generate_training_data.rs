@@ -1,3 +1,4 @@
+mod neural_network;
 mod plane;
 mod polyhedron;
 mod puzzles;
@@ -31,6 +32,7 @@ fn main() {
 
     let depth = 11;
 
+    states.insert(solved_state.clone(), 0);
     let turns: Vec<_> = puzzle.turn_names_iter().collect();
     let mut fringe_stack: Vec<StateToExpand> = vec![StateToExpand {
         puzzle_state: solved_state,

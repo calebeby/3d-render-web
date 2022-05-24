@@ -1,3 +1,4 @@
+mod neural_network;
 mod plane;
 mod polyhedron;
 mod puzzles;
@@ -13,8 +14,8 @@ use std::rc::Rc;
 
 use crate::plane::Plane;
 use crate::solver::{
-    FullSearchSolver, FullSearchSolverOpts, LookaheadSolver, LookaheadSolverOpts, ScrambleSolver,
-    Solver,
+    FullSearchSolver, FullSearchSolverOpts, LookaheadSolver, LookaheadSolverOpts, NNOneMoveSolver,
+    ScrambleSolver, Solver,
 };
 use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
@@ -127,8 +128,8 @@ fn init() -> Result<(), JsValue> {
 
     let puzzle_state = puzzle.get_initial_state();
 
-    let state = Rc::new(RefCell::new(State::<LookaheadSolver> {
-        solver: Solver::new(puzzle.clone(), LookaheadSolverOpts { depth: 7 }),
+    let state = Rc::new(RefCell::new(State::<NNOneMoveSolver> {
+        solver: Solver::new(puzzle.clone(), ()),
         is_solving: false,
         puzzle,
         puzzle_state,
