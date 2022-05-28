@@ -2,17 +2,32 @@ use std::rc::Rc;
 
 use web_sys::console;
 
-use crate::{
-    neural_network::{load_model, NeuralNetwork},
-    twisty_puzzle::{PuzzleState, TwistyPuzzle},
-};
+use crate::neural_network::{load_parameters_static, use_model};
+use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
+use corgi::array::Array;
 
 use super::ScrambleSolver;
 
 pub struct NNOneMoveSolver {
     puzzle: Rc<TwistyPuzzle>,
     state: PuzzleState,
-    model: NeuralNetwork,
+}
+
+impl NNOneMoveSolver {
+    fn evaluate_state(&self, state: &PuzzleState) -> f64 {
+        use_model(
+            |layers| load_parameters_static(layers),
+            |mut model| {
+                let input = Array::from((
+                    vec![1, state.len()],
+                    state.iter().map(|x| *x as f64).collect::<Vec<f64>>(),
+                ));
+                model.forward(input).values()[0]
+            },
+            |_| Ok(()),
+        )
+        .unwrap()
+    }
 }
 
 impl ScrambleSolver for NNOneMoveSolver {
@@ -22,7 +37,6 @@ impl ScrambleSolver for NNOneMoveSolver {
         Self {
             puzzle,
             state: initial_state,
-            model: load_model(),
         }
     }
 
@@ -35,19 +49,17 @@ impl Iterator for NNOneMoveSolver {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let current_score = self.model.plugin(&self.state);
-        // console::log_1(&format!("Current state score: {}", current_score).into());
-        println!("Current state score: {}", current_score);
-        // None
+        let current_score = self.evaluate_state(&self.state);
+        console::log_1(&format!("Current state: {:?}", &self.state).into());
+        console::log_1(&format!("Current state score: {}", current_score).into());
         let next_turn = self
             .puzzle
             .turn_names_iter()
             .enumerate()
             .map(|(turn_index, _turn_name)| {
                 let next_state = self.puzzle.get_derived_state(&self.state, turn_index);
-                let next_state_score = self.model.plugin(&next_state);
-                // console::log_1(&format!("Next state score: {}", next_state_score).into());
-                println!("Next state {} score: {}", turn_index, next_state_score);
+                let next_state_score = self.evaluate_state(&next_state);
+                console::log_1(&format!("Next state score: {}", next_state_score).into());
                 (turn_index, next_state_score)
             })
             .max_by(|(_, a_score), (_, b_score)| a_score.partial_cmp(b_score).unwrap());
@@ -62,21 +74,5 @@ impl Iterator for NNOneMoveSolver {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::puzzles;
-
-    use super::*;
-
-    #[test]
-    fn test_nn_one_move_solver() {
-        let puzzle = puzzles::pyraminx();
-        let initial_state = puzzle.get_initial_state();
-        let mut solver = NNOneMoveSolver::new(Rc::new(puzzle), initial_state, ());
-        let solution = solver.collect::<Vec<_>>();
-        println!("Solution: {:#?}", solution);
     }
 }

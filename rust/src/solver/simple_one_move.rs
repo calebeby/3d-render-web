@@ -12,7 +12,7 @@ pub struct OneMoveSolver {
 impl ScrambleSolver for OneMoveSolver {
     type Opts = ();
 
-    fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, opts: Self::Opts) -> Self {
+    fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
         Self {
             puzzle,
             state: initial_state,
