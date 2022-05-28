@@ -1,5 +1,10 @@
 pub(crate) use std::error::Error;
 
+use plotlib::page::Page;
+use plotlib::repr::Plot;
+use plotlib::style::PointStyle;
+use plotlib::view::ContinuousView;
+
 use corgi::array::Array;
 use corgi::numbers::Float;
 use neural_network::{load_parameters, save_parameters, use_model};
@@ -42,7 +47,7 @@ fn train() -> Result<(), Box<dyn Error>> {
                 .collect(),
             turns_to_solve: line.get(input_size).unwrap().parse::<_>().unwrap(),
         })
-        // .take(100000)
+        .take(100000)
         .collect();
     println!("done loading data");
 
@@ -59,6 +64,7 @@ fn train() -> Result<(), Box<dyn Error>> {
         },
         |mut model| {
             for epoch in 0..5 {
+                let mut plot_points = vec![];
                 println!("Shuffling");
                 data_ptrs.shuffle(rng);
                 println!("Done shuffling");
@@ -75,10 +81,16 @@ fn train() -> Result<(), Box<dyn Error>> {
 
                     let input = Array::from((vec![batch_size, input_size], input));
                     let target = Array::from((vec![batch_size, output_size], target));
-                    let _result = model.forward(input);
+                    let result = model.forward(input);
+                    for i in 0..batch_size {
+                        let r = result[vec![i, 0]];
+                        let t = target[vec![i, 0]];
+                        plot_points.push((r, t));
+                    }
                     total_loss += model.backward(target);
                     model.update();
                 }
+                plot(plot_points);
                 println!("loss from epoch {epoch}: {}", total_loss);
             }
         },
@@ -86,6 +98,12 @@ fn train() -> Result<(), Box<dyn Error>> {
     )?;
 
     Ok(())
+}
+
+fn plot(data: Vec<(Float, Float)>) {
+    let s1: Plot = Plot::new(data).point_style(PointStyle::new().size(0.3));
+    let v = ContinuousView::new().add(s1);
+    Page::single(&v).save("scatter.svg").unwrap();
 }
 
 fn main() {
