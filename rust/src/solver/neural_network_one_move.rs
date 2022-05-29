@@ -1,12 +1,15 @@
 use std::rc::Rc;
 
+use corgi::numbers::Float;
 use web_sys::console;
 
-use crate::neural_network::{load_parameters_static, use_model};
+use crate::neural_network::{evaluate_state, load_parameters, use_model};
 use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
 use corgi::array::Array;
 
 use super::ScrambleSolver;
+
+const NETWORK_JSON: &str = include_str!("../../learning/pyraminx.json");
 
 pub struct NNOneMoveSolver {
     puzzle: Rc<TwistyPuzzle>,
@@ -16,13 +19,12 @@ pub struct NNOneMoveSolver {
 impl NNOneMoveSolver {
     fn evaluate_state(&self, state: &PuzzleState) -> f64 {
         use_model(
-            |layers| load_parameters_static(layers),
+            |layers| load_parameters(layers, NETWORK_JSON),
             |mut model| {
-                let input = Array::from((
-                    vec![1, state.len()],
-                    state.iter().map(|x| *x as f64).collect::<Vec<f64>>(),
-                ));
-                model.forward(input).values()[0]
+                evaluate_state(
+                    state.iter().map(|x| *x as Float).collect::<Vec<_>>(),
+                    &mut model,
+                )
             },
             |_| Ok(()),
         )
@@ -49,6 +51,10 @@ impl Iterator for NNOneMoveSolver {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let solved_state = self.puzzle.get_initial_state();
+        if self.state == solved_state {
+            return None;
+        }
         let current_score = self.evaluate_state(&self.state);
         console::log_1(&format!("Current state: {:?}", &self.state).into());
         console::log_1(&format!("Current state score: {}", current_score).into());
@@ -58,6 +64,9 @@ impl Iterator for NNOneMoveSolver {
             .enumerate()
             .map(|(turn_index, _turn_name)| {
                 let next_state = self.puzzle.get_derived_state(&self.state, turn_index);
+                if next_state == solved_state {
+                    return (turn_index, Float::INFINITY);
+                }
                 let next_state_score = self.evaluate_state(&next_state);
                 console::log_1(&format!("Next state score: {}", next_state_score).into());
                 (turn_index, next_state_score)
