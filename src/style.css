@@ -20,6 +20,7 @@ body {
 }
 
 canvas {
+  filter: blur(15px) contrast(1000);
   width: 100%;
   align-self: stretch;
   justify-self: stretch;
