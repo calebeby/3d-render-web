@@ -70,7 +70,7 @@ fn train() -> Result<(), Box<dyn Error>> {
         .flatten()
         .collect();
 
-    let batch_size = 50;
+    let batch_size = 300;
     let batches_per_epoch = 25;
 
     for num_to_solve in 0..10 {
