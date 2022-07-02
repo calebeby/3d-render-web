@@ -79,7 +79,7 @@ impl Iterator for NNOneMoveSolver {
                 if current_score >= next_turn_score {
                     None
                 } else {
-                    Some(next_turn_name.clone())
+                    Some(next_turn_name)
                 }
             }
         }

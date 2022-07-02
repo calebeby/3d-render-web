@@ -19,7 +19,7 @@ impl ScrambleSolver for FullSearchSolver {
     type Opts = FullSearchSolverOpts;
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, opts: Self::Opts) -> Self {
-        let turns: Vec<_> = puzzle.turn_names_iter().collect();
+        let num_turns = puzzle.turn_names_iter().count();
         let mut fringe_stack_max_size = opts.depth + 1;
         let mut fringe_stack: Vec<StateToExpand> = vec![StateToExpand {
             puzzle_state: initial_state.clone(),
@@ -62,7 +62,7 @@ impl ScrambleSolver for FullSearchSolver {
                 })
             } else {
                 while let Some(solution_to_increment) = fringe_stack.last_mut() {
-                    if solution_to_increment.turn_index < turns.len() - 1 {
+                    if solution_to_increment.turn_index < num_turns - 1 {
                         solution_to_increment.turn_index += 1;
                         break;
                     } else {

@@ -95,9 +95,8 @@ struct State<T: ScrambleSolver> {
 #[wasm_bindgen]
 pub fn start() {
     let result = init();
-    match result {
-        Err(err) => console::error_1(&err),
-        _ => {}
+    if let Err(err) = result {
+        console::error_1(&err);
     }
 }
 
@@ -295,7 +294,6 @@ fn init() -> Result<(), JsValue> {
     }
 
     {
-        let canvas = canvas.clone();
         let canvas_ctx = canvas_ctx.clone();
         let state = state.clone();
         let width = width.clone();
@@ -361,14 +359,9 @@ fn init() -> Result<(), JsValue> {
     }
 
     {
-        let canvas_ctx = canvas_ctx.clone();
-        let state = state.clone();
-        let width = width.clone();
-        let height = height.clone();
-
         let rerender = move || {
             let mut state = state.borrow_mut();
-            if state.turn_queue.len() > 0 {
+            if state.turn_queue.is_empty() {
                 if state.turn_progress > 1.0 {
                     state.puzzle_state = state
                         .puzzle
@@ -456,15 +449,14 @@ fn render<T: ScrambleSolver>(
 
     let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
 
-    let uncolored_faces = if state.turn_queue.len() > 0 {
-        let turned_puzzle = state.puzzle.get_physically_turned_faces(
+    let uncolored_faces = if !state.turn_queue.is_empty() {
+        state.puzzle.get_physically_turned_faces(
             state.turn_queue[0],
             &state.puzzle_state,
             state.turn_progress,
-        );
-        turned_puzzle
+        )
     } else {
-        state.puzzle.faces(&state.puzzle_state).clone()
+        state.puzzle.faces(&state.puzzle_state)
     };
     let faces: Vec<FaceWithColor> = uncolored_faces
         .iter()

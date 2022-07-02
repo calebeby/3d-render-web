@@ -61,10 +61,10 @@ impl Iterator for LookaheadSolver {
                 for (turn_index, turn_name) in self.turns.iter().enumerate() {
                     if let Some(most_recent_turn) = state.most_recent_turn {
                         let most_recent_turn_name = &self.turns[most_recent_turn];
-                        if (most_recent_turn_name.ends_with("'")
+                        if (most_recent_turn_name.ends_with('\'')
                             && &most_recent_turn_name[0..most_recent_turn_name.len() - 1]
                                 == turn_name)
-                            || (turn_name.ends_with("'")
+                            || (turn_name.ends_with('\'')
                                 && &turn_name[0..turn_name.len() - 1] == most_recent_turn_name)
                         {
                             continue;
@@ -84,7 +84,7 @@ impl Iterator for LookaheadSolver {
                         score: new_score,
                     };
                     if new_score == solved_score {
-                        return Some(new_state_with_score.initial_turn?);
+                        return new_state_with_score.initial_turn;
                     }
                     if new_score > best.score {
                         best = new_state_with_score.clone();
@@ -97,7 +97,7 @@ impl Iterator for LookaheadSolver {
 
         self.state = best.puzzle_state;
 
-        Some(best.initial_turn?)
+        best.initial_turn
     }
 }
 

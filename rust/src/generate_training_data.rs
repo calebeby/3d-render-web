@@ -9,7 +9,6 @@ mod twisty_puzzle;
 mod vector3d;
 
 use crate::twisty_puzzle::PuzzleState;
-use csv;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -100,10 +99,10 @@ fn main() {
             })
             .unwrap();
     }
-    file.write(&csv_writer.into_inner().unwrap()).unwrap();
+    file.write_all(&csv_writer.into_inner().unwrap()).unwrap();
 }
 
-fn increment(fringe_stack: &mut Vec<StateToExpand>, turns: &Vec<&String>) {
+fn increment(fringe_stack: &mut Vec<StateToExpand>, turns: &[&String]) {
     while let Some(solution_to_increment) = fringe_stack.last_mut() {
         if solution_to_increment.turn_index < turns.len() - 1 {
             solution_to_increment.turn_index += 1;

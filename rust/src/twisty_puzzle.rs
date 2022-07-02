@@ -68,7 +68,7 @@ pub struct TwistyPuzzle {
 impl TwistyPuzzle {
     pub fn new(polyhedron: &Polyhedron, cuts: &[CutDefinition]) -> Self {
         let mut physical_turns: Vec<(String, PhysicalTurn)> = vec![];
-        let mut inferred_name_i = 'A' as u8;
+        let mut inferred_name_i = b'A';
         let cuts_with_names = cuts.iter().map(|cut| {
             let cut_name = match cut.name {
                 Some(name) => name.to_string(),
@@ -129,7 +129,7 @@ impl TwistyPuzzle {
                     .map(|vertex| {
                         (
                             vertex,
-                            (vertex - &cut.plane.point).dot(&cut.plane.normal) > 0.0,
+                            (vertex - cut.plane.point).dot(&cut.plane.normal) > 0.0,
                         )
                     })
                     .collect();
@@ -185,7 +185,7 @@ impl TwistyPuzzle {
         let mut pieces_map: HashMap<_, Vec<usize>> = HashMap::new();
         for (face_i, face) in faces.iter().enumerate() {
             let mut affecting_turn_names = face.affecting_turn_indices.clone();
-            affecting_turn_names.sort();
+            affecting_turn_names.sort_unstable();
             match pieces_map.get_mut(&affecting_turn_names) {
                 Some(faces) => faces.push(face_i),
                 None => {
@@ -346,7 +346,7 @@ impl TwistyPuzzle {
             .collect()
     }
 
-    pub fn get_derived_state_from_turns_iter<'a>(
+    pub fn get_derived_state_from_turns_iter(
         &self,
         previous_state: &PuzzleState,
         turns: impl Iterator<Item = usize>,

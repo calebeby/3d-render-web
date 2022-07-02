@@ -19,14 +19,12 @@ where
     let i = RefCell::new(0);
     let max_learning_rate = 3.0;
     let min_learning_rate = 0.01;
-    let mut get_learning_rate = || {
+    let get_learning_rate = || {
         {
             let mut s = i.borrow_mut();
             *s += 1;
-            let lr = (-(*s as Float / 2000.0).cos() + 1.0) / 2.0
-                * (max_learning_rate - min_learning_rate)
-                + min_learning_rate;
-            lr
+            (-(*s as Float / 2000.0).cos() + 1.0) / 2.0 * (max_learning_rate - min_learning_rate)
+                + min_learning_rate
         }
         .sin()
     };

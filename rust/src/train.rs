@@ -9,7 +9,7 @@ use plotlib::view::ContinuousView;
 use corgi::array::Array;
 use corgi::numbers::Float;
 use neural_network::{load_parameters, normalize_output, save_parameters, use_model};
-use rand::{prelude::SliceRandom, Rng};
+use rand::prelude::SliceRandom;
 
 mod neural_network;
 mod plane;
@@ -60,14 +60,13 @@ fn train() -> Result<(), Box<dyn Error>> {
     // Normalized by the number of turns to solve
     let data: Vec<Scramble> = raw_data
         .into_iter()
-        .map(|scramble| {
+        .flat_map(|scramble| {
             // This scramble should appear N times
             // so that each number of turns to solve
             // happens roughly the same number of times
             let n = highest_turns_to_solve / turns_to_solve_distribution[scramble.turns_to_solve];
             iter::repeat(scramble).take(n)
         })
-        .flatten()
         .collect();
 
     let batch_size = 300;
