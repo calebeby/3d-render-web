@@ -361,7 +361,7 @@ fn init() -> Result<(), JsValue> {
     {
         let rerender = move || {
             let mut state = state.borrow_mut();
-            if state.turn_queue.is_empty() {
+            if !state.turn_queue.is_empty() {
                 if state.turn_progress > 1.0 {
                     state.puzzle_state = state
                         .puzzle
