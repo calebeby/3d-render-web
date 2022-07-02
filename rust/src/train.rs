@@ -11,6 +11,7 @@ use corgi::numbers::Float;
 use neural_network::{load_parameters, normalize_output, save_parameters, use_model};
 use rand::prelude::SliceRandom;
 
+mod face_map;
 mod neural_network;
 mod plane;
 mod polyhedron;

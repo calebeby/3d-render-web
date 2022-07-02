@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::face_map::FaceMap;
 use rand::distributions::Uniform;
 use rand::Rng;
 
@@ -53,7 +54,7 @@ struct PhysicalTurn {
 struct Turn {
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
-    face_map: Vec<usize>,
+    face_map: FaceMap,
     physical_turn: PhysicalTurn,
 }
 
@@ -206,36 +207,36 @@ impl TwistyPuzzle {
             .into_iter()
             .enumerate()
             .map(|(turn_index, (turn_name, physical_turn))| {
-                let face_map: Vec<_> = faces
-                    .iter()
-                    .enumerate()
-                    .map(|(i, face)| {
-                        if face.affecting_turn_indices.contains(&turn_index) {
-                            let original_location = &face_centers[i];
-                            let new_location = original_location.rotate_about_axis(
-                                physical_turn.rotation_axis,
-                                physical_turn.rotation_axis_point,
-                            );
-                            // Find the index in the old faces array
-                            // which corresponds to the new position
-                            face_centers
-                                .iter()
-                                .position(|old_location| old_location.approx_equals(&new_location))
-                                .unwrap_or(i)
-                        } else {
-                            // this turn does not affect this face; map to itself
-                            i
-                        }
-                    })
-                    .collect();
+                let face_map = FaceMap(
+                    faces
+                        .iter()
+                        .enumerate()
+                        .map(|(i, face)| {
+                            if face.affecting_turn_indices.contains(&turn_index) {
+                                let original_location = &face_centers[i];
+                                let new_location = original_location.rotate_about_axis(
+                                    physical_turn.rotation_axis,
+                                    physical_turn.rotation_axis_point,
+                                );
+                                // Find the index in the old faces array
+                                // which corresponds to the new position
+                                face_centers
+                                    .iter()
+                                    .position(|old_location| {
+                                        old_location.approx_equals(&new_location)
+                                    })
+                                    .unwrap_or(i)
+                            } else {
+                                // this turn does not affect this face; map to itself
+                                i
+                            }
+                        })
+                        .collect(),
+                );
 
-                let mut inverted_face_map = vec![0; face_map.len()];
-                for (val, i) in face_map.iter().enumerate() {
-                    inverted_face_map[*i] = val;
-                }
                 let turn = Turn {
                     physical_turn,
-                    face_map: inverted_face_map,
+                    face_map: face_map.invert(),
                 };
                 (turn_name, turn)
             })
@@ -341,6 +342,7 @@ impl TwistyPuzzle {
     ) -> PuzzleState {
         let face_map = &self.turns.get(turn_index).unwrap().face_map;
         face_map
+            .0
             .iter()
             .map(|old_face_index| previous_state[*old_face_index])
             .collect()
@@ -359,6 +361,11 @@ impl TwistyPuzzle {
     #[inline]
     pub fn turn_names_iter(&self) -> impl Iterator<Item = &String> + '_ {
         self.turn_names.iter()
+    }
+
+    #[inline]
+    pub fn num_turns(&self) -> usize {
+        self.turns.len()
     }
 
     pub fn scramble(&self, initial_state: &PuzzleState, limit: u64) -> PuzzleState {

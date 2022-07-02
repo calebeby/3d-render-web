@@ -1,3 +1,4 @@
+mod face_map;
 mod neural_network;
 mod plane;
 mod polyhedron;
