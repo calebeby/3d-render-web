@@ -48,12 +48,9 @@ pub fn discover_metamoves(
     let mut best_metamoves = BinaryHeap::new();
     // Each face map is stored with the fewest number of moves to achieve that face map.
     let mut face_map_optimal_num_moves: HashMap<FaceMap, usize> = HashMap::new();
-    let mut debug_map: HashMap<FaceMap, Vec<usize>> = HashMap::new();
     face_map_optimal_num_moves.insert(FaceMap::identity(puzzle.turns.len()), 0);
-    debug_map.insert(FaceMap::identity(puzzle.turns.len()), vec![]);
-    for (turn_index, turn) in puzzle.turns.iter().enumerate() {
+    for turn in &puzzle.turns {
         face_map_optimal_num_moves.insert(turn.face_map.clone(), 1);
-        debug_map.insert(turn.face_map.clone(), vec![turn_index]);
     }
     let mut fringe_stack: Vec<StateToExpand> = vec![StateToExpand {
         puzzle_state: solved_state.clone(),
@@ -94,7 +91,6 @@ pub fn discover_metamoves(
                     }
                     _ => {
                         face_map_optimal_num_moves.insert(face_map.clone(), turns.len());
-                        debug_map.insert(face_map.clone(), turns.clone());
                         let new_metamove = MetaMove {
                             face_map,
                             num_affected_pieces,
