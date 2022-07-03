@@ -5,7 +5,7 @@ use super::{
 use crate::{
     face_map::FaceMap,
     traverse_combinations::{traverse_combinations, TraverseResult},
-    twisty_puzzle::{PuzzleState, Turn, TwistyPuzzle},
+    twisty_puzzle::{PuzzleState, TwistyPuzzle},
 };
 use std::{collections::VecDeque, rc::Rc};
 use web_sys::console;
@@ -21,8 +21,24 @@ impl ScrambleSolver for MetaMoveSolver {
     type Opts = ();
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
+        let metamoves: Vec<MetaMove> = discover_metamoves(&puzzle, 7)
+            .into_iter()
+            .filter(|mm| mm.num_affected_pieces <= 3)
+            .take(200)
+            .collect();
+
+        console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
+        console::log_1(
+            &format!(
+                "best metamove: {} turns affecting {} pieces",
+                metamoves[0].turns.len(),
+                metamoves[0].num_affected_pieces
+            )
+            .into(),
+        );
+
         Self {
-            metamoves: discover_metamoves(&puzzle, 4, 48),
+            metamoves,
             puzzle,
             state: initial_state,
             buffered_turns: VecDeque::new(),
@@ -45,7 +61,6 @@ impl Iterator for MetaMoveSolver {
                 .get_derived_state_turn_index(&self.state, next_turn);
             return Some(next_turn);
         }
-        console::log_1(&format!("num metamoves: {}", self.metamoves.len()).into());
         let depth = 3;
 
         let options: Vec<MetaMove> = self
@@ -92,6 +107,9 @@ impl Iterator for MetaMoveSolver {
                 if next_state_score > best_score {
                     best_metamove = mm.clone();
                     best_score = next_state_score;
+                }
+                if next_state_score == self.puzzle.get_num_pieces() {
+                    return TraverseResult::Break;
                 }
                 TraverseResult::Continue
             },

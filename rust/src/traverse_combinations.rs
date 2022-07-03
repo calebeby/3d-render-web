@@ -1,6 +1,7 @@
 pub enum TraverseResult {
     Skip,
     Continue,
+    Break,
 }
 
 struct StateToExpand<Combined> {
@@ -38,6 +39,7 @@ pub fn traverse_combinations<Item, Combined, Combiner, Cb>(
                     combined_previous: combined,
                     item_index: 0,
                 }),
+                TraverseResult::Break => break,
             }
         } else {
             increment(&mut fringe_stack, items.len());

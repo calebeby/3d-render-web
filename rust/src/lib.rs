@@ -122,12 +122,14 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let puzzle = Rc::new(puzzles::pyraminx());
+    let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
 
+    type S = MetaMoveSolver;
     let puzzle_state = puzzle.get_initial_state();
+    let solver_opts: <S as ScrambleSolver>::Opts = ();
 
-    let state = Rc::new(RefCell::new(State::<MetaMoveSolver> {
-        solver: Solver::new(puzzle.clone(), ()),
+    let state = Rc::new(RefCell::new(State::<S> {
+        solver: Solver::new(puzzle.clone(), solver_opts),
         is_solving: false,
         puzzle,
         puzzle_state,

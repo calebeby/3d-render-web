@@ -60,12 +60,7 @@ impl Ord for MetaMove {
     }
 }
 
-pub fn discover_metamoves(
-    puzzle: &TwistyPuzzle,
-    max_turns: usize,
-    // Pass 0 for no limit
-    num_metamoves: usize,
-) -> Vec<MetaMove> {
+pub fn discover_metamoves(puzzle: &TwistyPuzzle, max_turns: usize) -> Vec<MetaMove> {
     let mut best_metamoves: BinaryHeap<MetaMove> = BinaryHeap::new();
     // Each face map is stored with the fewest number of moves to achieve that face map.
     let mut face_map_optimal_num_moves: HashMap<FaceMap, usize> = HashMap::new();
@@ -121,18 +116,7 @@ pub fn discover_metamoves(
                 _ => {
                     face_map_optimal_num_moves
                         .insert(metamove.face_map.clone(), metamove.turns.len());
-                    if num_metamoves == 0 || best_metamoves.len() < num_metamoves {
-                        // There is space in the best_metamoves so add it
-                        best_metamoves.push(metamove.clone());
-                    } else {
-                        // There is not space so we have to decide whether to kick one out
-                        let worst_saved_metamove = best_metamoves.peek().unwrap();
-                        if metamove < worst_saved_metamove {
-                            // kick it out/replace it
-                            best_metamoves.pop();
-                            best_metamoves.push(metamove.clone());
-                        }
-                    }
+                    best_metamoves.push(metamove.clone());
                     TraverseResult::Continue
                 }
             }
@@ -153,7 +137,7 @@ mod tests {
     fn test_discover_metamoves_2x2() {
         let puzzle = puzzles::rubiks_cube_2x2();
         let solved_state = puzzle.get_initial_state();
-        let all_metamoves_2_moves = discover_metamoves(&puzzle, 2, 0);
+        let all_metamoves_2_moves = discover_metamoves(&puzzle, 2);
 
         assert_eq!(all_metamoves_2_moves.len(), 27);
 
@@ -364,19 +348,16 @@ mod tests {
             );
         }
 
-        let metamoves_2_moves_limit_5 = discover_metamoves(&puzzle, 2, 5);
-        assert_eq!(metamoves_2_moves_limit_5.len(), 5);
-        assert_eq!(all_metamoves_2_moves[0..5], metamoves_2_moves_limit_5);
-        let metamoves_4_moves_limit_1 = discover_metamoves(&puzzle, 4, 1);
-        assert_eq!(metamoves_4_moves_limit_1.len(), 1);
-        assert_eq!(metamoves_4_moves_limit_1[0].turns, [4, 4]);
-        assert_eq!(metamoves_4_moves_limit_1[0].num_affected_pieces, 4);
+        let all_metamoves_4_moves = discover_metamoves(&puzzle, 4);
+        assert_eq!(all_metamoves_4_moves.len(), 693);
+        assert_eq!(all_metamoves_4_moves[0].turns, [4, 4]);
+        assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 4);
     }
 
     #[test]
     fn test_discover_metamoves_pyraminx() {
         let puzzle = puzzles::pyraminx();
-        let all_metamoves_4_moves = discover_metamoves(&puzzle, 4, 0);
+        let all_metamoves_4_moves = discover_metamoves(&puzzle, 4);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 3);
         assert_eq!(all_metamoves_4_moves[0].turns, [7, 5, 6, 4]);
 
@@ -393,7 +374,7 @@ mod tests {
     #[test]
     fn test_discover_metamoves_3x3() {
         let puzzle = puzzles::rubiks_cube_3x3();
-        let all_metamoves_4_moves = discover_metamoves(&puzzle, 4, 0);
+        let all_metamoves_4_moves = discover_metamoves(&puzzle, 4);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 7);
         assert_eq!(all_metamoves_4_moves[0].turns, [11, 9, 10, 8]);
 
