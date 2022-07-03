@@ -12,7 +12,28 @@ pub struct MetaMove {
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
     pub face_map: FaceMap,
-    num_affected_pieces: usize,
+    pub num_affected_pieces: usize,
+}
+
+impl MetaMove {
+    pub fn new(puzzle: &TwistyPuzzle, turns: Vec<usize>, face_map: FaceMap) -> Self {
+        let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &face_map);
+        let num_affected_pieces =
+            puzzle.get_num_pieces() - puzzle.get_num_solved_pieces(&derived_state);
+
+        MetaMove {
+            turns,
+            face_map,
+            num_affected_pieces,
+        }
+    }
+    pub fn empty(puzzle: &TwistyPuzzle) -> Self {
+        MetaMove {
+            turns: vec![],
+            face_map: FaceMap::identity(puzzle.get_num_faces()),
+            num_affected_pieces: 0,
+        }
+    }
 }
 
 impl PartialEq for MetaMove {
@@ -58,11 +79,7 @@ pub fn discover_metamoves(
     traverse_combinations(
         &turns,
         max_turns,
-        MetaMove {
-            turns: vec![],
-            face_map: FaceMap::identity(puzzle.get_num_faces()),
-            num_affected_pieces: 0,
-        },
+        MetaMove::empty(puzzle),
         &|previous_metamove: &MetaMove, (turn_index, turn): &(usize, &Turn)| {
             let face_map = previous_metamove.face_map.apply(&turn.face_map);
             let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &face_map);
