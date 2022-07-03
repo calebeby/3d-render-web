@@ -1,11 +1,12 @@
-use crate::twisty_puzzle::PuzzleState;
+use crate::traverse_combinations::{traverse_combinations, TraverseResult};
+use crate::twisty_puzzle::{PuzzleState, Turn};
 use crate::{face_map::FaceMap, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
 /// A metamove is a set of moves that combines to one large "move"
 /// that ends up (hopefully) moving only a small number of pieces.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetaMove {
     pub turns: Vec<usize>,
     // The indices of this vector are the new face indexes.
@@ -44,99 +45,84 @@ pub fn discover_metamoves(
     // Pass 0 for no limit
     num_metamoves: usize,
 ) -> Vec<MetaMove> {
-    let solved_state = puzzle.get_initial_state();
-    let mut best_metamoves = BinaryHeap::new();
+    let mut best_metamoves: BinaryHeap<MetaMove> = BinaryHeap::new();
     // Each face map is stored with the fewest number of moves to achieve that face map.
     let mut face_map_optimal_num_moves: HashMap<FaceMap, usize> = HashMap::new();
     face_map_optimal_num_moves.insert(FaceMap::identity(puzzle.turns.len()), 0);
     for turn in &puzzle.turns {
         face_map_optimal_num_moves.insert(turn.face_map.clone(), 1);
     }
-    let mut fringe_stack: Vec<StateToExpand> = vec![StateToExpand {
-        puzzle_state: solved_state.clone(),
-        turn_index: 0,
-    }];
 
-    while let Some(state_to_expand) = fringe_stack.last() {
-        if fringe_stack.len() < max_turns + 1 {
-            let derived_state = puzzle.get_derived_state_turn_index(
-                &state_to_expand.puzzle_state,
-                state_to_expand.turn_index,
-            );
+    let turns: Vec<_> = puzzle.turns.iter().enumerate().collect();
+
+    traverse_combinations(
+        &turns,
+        max_turns,
+        MetaMove {
+            turns: vec![],
+            face_map: FaceMap::identity(puzzle.get_num_faces()),
+            num_affected_pieces: 0,
+        },
+        &|previous_metamove: &MetaMove, (turn_index, turn): &(usize, &Turn)| {
+            let face_map = previous_metamove.face_map.apply(&turn.face_map);
+            let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &face_map);
             let num_affected_pieces =
                 puzzle.get_num_pieces() - puzzle.get_num_solved_pieces(&derived_state);
-            // Ignore move sequences that cancel themselves out and have no effect
-            // Also ignore "move sequences" if they are just one move
-            if fringe_stack.len() > 1 && num_affected_pieces > 0 {
-                // We want to maximize the number of solved pieces:
-                // minimize the number of pieces that were affected.
-                let turns: Vec<_> = fringe_stack
+
+            MetaMove {
+                num_affected_pieces,
+                face_map,
+                turns: previous_metamove
+                    .turns
                     .iter()
-                    .map(|state_to_expand| state_to_expand.turn_index)
-                    .collect();
-                let face_map = turns.iter().fold(
-                    FaceMap::identity(solved_state.len()),
-                    |face_map, turn_index| face_map.apply(&puzzle.turns[*turn_index].face_map),
-                );
-                // A set of moves that has the same outcome as the current one.
-                let saved_equivalent_metamove = face_map_optimal_num_moves.get(&face_map);
-                match saved_equivalent_metamove {
-                    Some(&saved_num_turns) if saved_num_turns <= turns.len() => {
-                        // If the saved metamove is better than the current metamove,
-                        // We don't need to expand this state,
-                        // because every derived state will also be more optimally solved
-                        // using the saved solutions than the current solution
-                        increment(&mut fringe_stack, puzzle.turns.len());
-                        continue;
-                    }
-                    _ => {
-                        face_map_optimal_num_moves.insert(face_map.clone(), turns.len());
-                        let new_metamove = MetaMove {
-                            face_map,
-                            num_affected_pieces,
-                            turns,
-                        };
-                        if num_metamoves == 0 || best_metamoves.len() < num_metamoves {
-                            // There is space in the best_metamoves so add it
-                            best_metamoves.push(new_metamove);
-                        } else {
-                            // There is not space so we have to decide whether to kick one out
-                            let worst_saved_metamove = best_metamoves.peek().unwrap();
-                            if new_metamove < *worst_saved_metamove {
-                                // kick it out/replace it
-                                best_metamoves.pop();
-                                best_metamoves.push(new_metamove);
-                            }
+                    .chain(std::iter::once(turn_index))
+                    .cloned()
+                    .collect(),
+            }
+        },
+        &mut |metamove| {
+            // Ignore "move sequences" if they are just one move
+            // Also ignore move sequences that cancel themselves out and have no effect
+            if metamove.turns.len() <= 1 || metamove.num_affected_pieces == 0 {
+                return TraverseResult::Continue;
+            }
+
+            // We want to maximize the number of solved pieces:
+            // minimize the number of pieces that were affected.
+
+            // A set of moves that has the same outcome as the current one.
+            let saved_equivalent_metamove = face_map_optimal_num_moves.get(&metamove.face_map);
+
+            match saved_equivalent_metamove {
+                Some(&saved_num_turns) if saved_num_turns <= metamove.turns.len() => {
+                    // If the saved metamove is better than the current metamove,
+                    // We don't need to expand this state,
+                    // because every derived state will also be more optimally solved
+                    // using the saved solutions than the current solution
+                    TraverseResult::Skip
+                }
+                _ => {
+                    face_map_optimal_num_moves
+                        .insert(metamove.face_map.clone(), metamove.turns.len());
+                    if num_metamoves == 0 || best_metamoves.len() < num_metamoves {
+                        // There is space in the best_metamoves so add it
+                        best_metamoves.push(metamove.clone());
+                    } else {
+                        // There is not space so we have to decide whether to kick one out
+                        let worst_saved_metamove = best_metamoves.peek().unwrap();
+                        if metamove < worst_saved_metamove {
+                            // kick it out/replace it
+                            best_metamoves.pop();
+                            best_metamoves.push(metamove.clone());
                         }
                     }
+                    TraverseResult::Continue
                 }
             }
-            fringe_stack.push(StateToExpand {
-                puzzle_state: derived_state,
-                turn_index: 0,
-            })
-        } else {
-            increment(&mut fringe_stack, puzzle.turns.len());
-        }
-    }
+        },
+    );
 
     best_metamoves.into_sorted_vec()
-}
-
-struct StateToExpand {
-    puzzle_state: PuzzleState,
-    turn_index: usize,
-}
-
-fn increment(fringe_stack: &mut Vec<StateToExpand>, num_turns: usize) {
-    while let Some(solution_to_increment) = fringe_stack.last_mut() {
-        if solution_to_increment.turn_index < num_turns - 1 {
-            solution_to_increment.turn_index += 1;
-            break;
-        } else {
-            fringe_stack.pop();
-        }
-    }
 }
 
 #[cfg(test)]

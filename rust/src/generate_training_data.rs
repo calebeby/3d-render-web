@@ -6,6 +6,7 @@ mod puzzles;
 mod quaternion;
 mod ray;
 mod solver;
+mod traverse_combinations;
 mod twisty_puzzle;
 mod vector3d;
 

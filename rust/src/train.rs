@@ -17,6 +17,7 @@ mod plane;
 mod polyhedron;
 mod quaternion;
 mod ray;
+mod traverse_combinations;
 mod twisty_puzzle;
 mod vector3d;
 
