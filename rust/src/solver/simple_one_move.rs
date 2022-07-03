@@ -28,29 +28,25 @@ impl Iterator for OneMoveSolver {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let next_turn = self
+        let current_score = self.puzzle.get_num_solved_pieces(&self.state);
+        let (next_turn_index, _, next_state) = self
             .puzzle
-            .turn_names_iter()
+            .turns
+            .iter()
             .enumerate()
-            .map(|(turn_index, _turn_name)| {
-                let next_state = self
-                    .puzzle
-                    .get_derived_state_turn_index(&self.state, turn_index);
+            .filter_map(|(turn_index, turn)| {
+                let next_state = self.puzzle.get_derived_state(&self.state, &turn.face_map);
                 let next_state_score = self.puzzle.get_num_solved_pieces(&next_state);
-                (turn_index, next_state_score)
-            })
-            .max_by_key(|(_, score)| *score);
-
-        match next_turn {
-            None => None,
-            Some((next_turn_name, next_turn_score)) => {
-                let current_score = self.puzzle.get_num_solved_pieces(&self.state);
-                if current_score >= next_turn_score {
-                    None
+                if next_state_score > current_score {
+                    Some((turn_index, next_state_score, next_state))
                 } else {
-                    Some(next_turn_name)
+                    None
                 }
-            }
-        }
+            })
+            .max_by_key(|(_, score, _)| *score)?;
+
+        self.state = next_state;
+
+        Some(next_turn_index)
     }
 }

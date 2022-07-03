@@ -4,6 +4,7 @@ use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
 mod full_search_solve;
 mod lookahead;
 mod metamove_solver;
+mod metamoves;
 mod neural_network_one_move;
 mod simple_one_move;
 pub use full_search_solve::{FullSearchSolver, FullSearchSolverOpts};
