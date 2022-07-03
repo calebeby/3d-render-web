@@ -7,10 +7,10 @@ use std::collections::{BinaryHeap, HashMap};
 /// that ends up (hopefully) moving only a small number of pieces.
 #[derive(Debug)]
 pub struct MetaMove {
-    turns: Vec<usize>,
+    pub turns: Vec<usize>,
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
-    face_map: FaceMap,
+    pub face_map: FaceMap,
     num_affected_pieces: usize,
 }
 
