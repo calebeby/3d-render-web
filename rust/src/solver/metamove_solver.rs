@@ -21,11 +21,15 @@ impl ScrambleSolver for MetaMoveSolver {
     type Opts = ();
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
-        let metamoves: Vec<MetaMove> = discover_metamoves(&puzzle, 7)
-            .into_iter()
-            .filter(|mm| mm.num_affected_pieces <= 3)
-            .take(20)
-            .collect();
+        let metamoves: Vec<MetaMove> =
+            discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 3, 7)
+                .into_iter()
+                .take(200)
+                .collect();
+
+        if metamoves.is_empty() {
+            console::error_1(&("no metamoves").into());
+        }
 
         console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
         console::log_1(
@@ -61,7 +65,7 @@ impl Iterator for MetaMoveSolver {
                 .get_derived_state_turn_index(&self.state, next_turn);
             return Some(next_turn);
         }
-        let depth = 4;
+        let depth = 2;
 
         let options: Vec<MetaMove> = self
             .metamoves

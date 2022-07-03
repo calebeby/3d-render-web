@@ -193,7 +193,6 @@ fn init() -> Result<(), JsValue> {
         let scramble_solver = state.scramble_solver.as_mut().unwrap();
         let turn_index = scramble_solver.next();
         if let Some(turn_index) = turn_index {
-            console::log_1(&format!("turn: {}", turn_index).into());
             state.turn_queue.push_back(turn_index);
             true
         } else {
