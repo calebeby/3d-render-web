@@ -42,8 +42,10 @@ impl ScrambleSolver for FullSearchSolver {
 
         while let Some(state_to_expand) = fringe_stack.last() {
             if fringe_stack.len() < fringe_stack_max_size {
-                let derived_state = puzzle
-                    .get_derived_state(&state_to_expand.puzzle_state, state_to_expand.turn_index);
+                let derived_state = puzzle.get_derived_state_turn_index(
+                    &state_to_expand.puzzle_state,
+                    state_to_expand.turn_index,
+                );
                 let score = puzzle.get_num_solved_pieces(&derived_state);
                 let num_moves = fringe_stack.len();
                 if score > best.score || (score == best.score && num_moves < best.num_moves) {
@@ -91,7 +93,7 @@ impl Iterator for FullSearchSolver {
 
     fn next(&mut self) -> Option<Self::Item> {
         let turn = self.solution.pop_front()?;
-        self.state = self.puzzle.get_derived_state(&self.state, turn);
+        self.state = self.puzzle.get_derived_state_turn_index(&self.state, turn);
         Some(turn)
     }
 }

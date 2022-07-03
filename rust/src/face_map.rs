@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct FaceMap(
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
@@ -24,6 +24,9 @@ impl FaceMap {
         }
         FaceMap(inverted_face_map)
     }
+    pub fn identity(count: usize) -> FaceMap {
+        FaceMap((0..count).into_iter().collect())
+    }
 }
 
 #[cfg(test)]
@@ -39,5 +42,7 @@ mod tests {
         assert_eq!(combined_face_map.0, vec![1, 0, 2]);
         assert_eq!(initial_face_map.invert().0, vec![0, 2, 1]);
         assert_eq!(second_face_map.invert().0, vec![1, 2, 0]);
+
+        assert_eq!(FaceMap::identity(3).0, vec![0, 1, 2]);
     }
 }

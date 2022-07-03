@@ -72,7 +72,7 @@ impl Iterator for LookaheadSolver {
                     }
                     let new_state = self
                         .puzzle
-                        .get_derived_state(&state.puzzle_state, turn_index);
+                        .get_derived_state_turn_index(&state.puzzle_state, turn_index);
                     let new_score = self.puzzle.get_num_solved_pieces(&new_state);
                     let new_state_with_score = StateWithScore {
                         initial_turn: match state.initial_turn {

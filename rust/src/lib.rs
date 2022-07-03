@@ -14,10 +14,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::plane::Plane;
-use crate::solver::{
-    FullSearchSolver, FullSearchSolverOpts, LookaheadSolver, LookaheadSolverOpts, NNOneMoveSolver,
-    ScrambleSolver, Solver,
-};
+use crate::solver::{MetaMoveSolver, ScrambleSolver, Solver};
 use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
 use polyhedron::Face;
@@ -128,7 +125,7 @@ fn init() -> Result<(), JsValue> {
 
     let puzzle_state = puzzle.get_initial_state();
 
-    let state = Rc::new(RefCell::new(State::<NNOneMoveSolver> {
+    let state = Rc::new(RefCell::new(State::<MetaMoveSolver> {
         solver: Solver::new(puzzle.clone(), ()),
         is_solving: false,
         puzzle,
@@ -366,7 +363,7 @@ fn init() -> Result<(), JsValue> {
                 if state.turn_progress > 1.0 {
                     state.puzzle_state = state
                         .puzzle
-                        .get_derived_state(&state.puzzle_state, state.turn_queue[0]);
+                        .get_derived_state_turn_index(&state.puzzle_state, state.turn_queue[0]);
                     state.turn_queue.pop_front();
                     state.turn_progress = 0.0;
                     if state.is_solving && state.turn_queue.is_empty() {

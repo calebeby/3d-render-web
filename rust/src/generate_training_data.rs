@@ -24,6 +24,23 @@ struct Record {
     turns_to_solve: usize,
 }
 
+#[derive(Debug)]
+struct StateToExpand {
+    puzzle_state: PuzzleState,
+    turn_index: usize,
+}
+
+fn increment(fringe_stack: &mut Vec<StateToExpand>, num_turns: usize) {
+    while let Some(solution_to_increment) = fringe_stack.last_mut() {
+        if solution_to_increment.turn_index < num_turns - 1 {
+            solution_to_increment.turn_index += 1;
+            break;
+        } else {
+            fringe_stack.pop();
+        }
+    }
+}
+
 fn main() {
     let puzzle = Rc::new(puzzles::pyraminx());
 
@@ -52,8 +69,10 @@ fn main() {
         }
         if fringe_stack.len() < depth + 1 {
             num_turns += 1;
-            let derived_state =
-                puzzle.get_derived_state(&state_to_expand.puzzle_state, state_to_expand.turn_index);
+            let derived_state = puzzle.get_derived_state_turn_index(
+                &state_to_expand.puzzle_state,
+                state_to_expand.turn_index,
+            );
             let num_moves = fringe_stack.len();
             let saved_solution_turns = states.get(&derived_state);
             match saved_solution_turns {
@@ -62,7 +81,7 @@ fn main() {
                     // We don't need to expand this state,
                     // because every derived state will also be more optimally solved
                     // using the saved solutions than the current solution
-                    increment(&mut fringe_stack, &turns);
+                    increment(&mut fringe_stack, turns.len());
                     continue;
                 }
                 _ => {
@@ -74,7 +93,7 @@ fn main() {
                 turn_index: 0,
             })
         } else {
-            increment(&mut fringe_stack, &turns);
+            increment(&mut fringe_stack, turns.len());
         }
     }
 
@@ -101,21 +120,4 @@ fn main() {
             .unwrap();
     }
     file.write_all(&csv_writer.into_inner().unwrap()).unwrap();
-}
-
-fn increment(fringe_stack: &mut Vec<StateToExpand>, turns: &[&String]) {
-    while let Some(solution_to_increment) = fringe_stack.last_mut() {
-        if solution_to_increment.turn_index < turns.len() - 1 {
-            solution_to_increment.turn_index += 1;
-            break;
-        } else {
-            fringe_stack.pop();
-        }
-    }
-}
-
-#[derive(Debug)]
-struct StateToExpand {
-    puzzle_state: PuzzleState,
-    turn_index: usize,
 }

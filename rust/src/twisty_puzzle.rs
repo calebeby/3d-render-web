@@ -51,17 +51,17 @@ struct PhysicalTurn {
 }
 
 #[derive(Debug)]
-struct Turn {
+pub(crate) struct Turn {
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
-    face_map: FaceMap,
+    pub(crate) face_map: FaceMap,
     physical_turn: PhysicalTurn,
 }
 
 pub struct TwistyPuzzle {
     faces: Vec<PieceFace>,
-    turns: Vec<Turn>,
-    turn_names: Vec<String>,
+    pub(crate) turns: Vec<Turn>,
+    pub turn_names: Vec<String>,
     // Each piece is a vector of its face indexes
     pieces: Vec<Vec<usize>>,
 }
@@ -338,14 +338,22 @@ impl TwistyPuzzle {
     pub fn get_derived_state(
         &self,
         previous_state: &PuzzleState,
-        turn_index: usize,
+        face_map: &FaceMap,
     ) -> PuzzleState {
-        let face_map = &self.turns.get(turn_index).unwrap().face_map;
         face_map
             .0
             .iter()
             .map(|old_face_index| previous_state[*old_face_index])
             .collect()
+    }
+
+    pub fn get_derived_state_turn_index(
+        &self,
+        previous_state: &PuzzleState,
+        turn_index: usize,
+    ) -> PuzzleState {
+        let face_map = &self.turns.get(turn_index).unwrap().face_map;
+        self.get_derived_state(previous_state, face_map)
     }
 
     pub fn get_derived_state_from_turns_iter(
@@ -354,30 +362,26 @@ impl TwistyPuzzle {
         turns: impl Iterator<Item = usize>,
     ) -> PuzzleState {
         turns.fold(previous_state.clone(), |state, turn_index| {
-            self.get_derived_state(&state, turn_index)
+            self.get_derived_state_turn_index(&state, turn_index)
         })
     }
 
+    // TODO: remove this, turn_names is public?
     #[inline]
     pub fn turn_names_iter(&self) -> impl Iterator<Item = &String> + '_ {
         self.turn_names.iter()
     }
 
-    #[inline]
-    pub fn num_turns(&self) -> usize {
-        self.turns.len()
-    }
-
     pub fn scramble(&self, initial_state: &PuzzleState, limit: u64) -> PuzzleState {
         let mut state = initial_state.clone();
 
-        let num_turns = self.turn_names_iter().count();
+        let num_turns = self.turns.len();
 
         let mut rng = rand::thread_rng();
         let range = Uniform::new(0, num_turns);
 
         for _ in 0..limit {
-            state = self.get_derived_state(&state, rng.sample(range));
+            state = self.get_derived_state_turn_index(&state, rng.sample(range));
         }
 
         state

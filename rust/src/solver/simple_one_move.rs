@@ -33,7 +33,9 @@ impl Iterator for OneMoveSolver {
             .turn_names_iter()
             .enumerate()
             .map(|(turn_index, _turn_name)| {
-                let next_state = self.puzzle.get_derived_state(&self.state, turn_index);
+                let next_state = self
+                    .puzzle
+                    .get_derived_state_turn_index(&self.state, turn_index);
                 let next_state_score = self.puzzle.get_num_solved_pieces(&next_state);
                 (turn_index, next_state_score)
             })

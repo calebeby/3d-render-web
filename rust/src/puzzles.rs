@@ -188,8 +188,8 @@ mod tests {
         assert_eq!(puzzle.get_num_faces(), 11 * 12);
 
         let initial_state = puzzle.get_initial_state();
-        let turned_state = puzzle.get_derived_state(&initial_state, 0);
-        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
         assert_eq!(initial_state, turned_again_state);
     }
 
@@ -199,8 +199,8 @@ mod tests {
         assert_eq!(puzzle.get_num_faces(), 9 * 6);
 
         let initial_state = puzzle.get_initial_state();
-        let turned_state = puzzle.get_derived_state(&initial_state, 0);
-        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
         assert_eq!(initial_state, turned_again_state);
     }
 
@@ -210,8 +210,8 @@ mod tests {
         assert_eq!(puzzle.get_num_faces(), 4 * 6);
 
         let initial_state = puzzle.get_initial_state();
-        let turned_state = puzzle.get_derived_state(&initial_state, 0);
-        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
         assert_eq!(initial_state, turned_again_state);
     }
 
@@ -221,8 +221,8 @@ mod tests {
         assert_eq!(puzzle.get_num_faces(), 7 * 4);
 
         let initial_state = puzzle.get_initial_state();
-        let turned_state = puzzle.get_derived_state(&initial_state, 0);
-        let turned_again_state = puzzle.get_derived_state(&turned_state, 1);
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
         assert_eq!(initial_state, turned_again_state);
     }
 }

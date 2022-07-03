@@ -63,7 +63,9 @@ impl Iterator for NNOneMoveSolver {
             .turn_names_iter()
             .enumerate()
             .map(|(turn_index, _turn_name)| {
-                let next_state = self.puzzle.get_derived_state(&self.state, turn_index);
+                let next_state = self
+                    .puzzle
+                    .get_derived_state_turn_index(&self.state, turn_index);
                 if next_state == solved_state {
                     return (turn_index, Float::INFINITY);
                 }
