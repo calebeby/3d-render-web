@@ -24,7 +24,7 @@ impl ScrambleSolver for MetaMoveSolver {
         let metamoves: Vec<MetaMove> = discover_metamoves(&puzzle, 7)
             .into_iter()
             .filter(|mm| mm.num_affected_pieces <= 3)
-            .take(200)
+            .take(20)
             .collect();
 
         console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
@@ -61,7 +61,7 @@ impl Iterator for MetaMoveSolver {
                 .get_derived_state_turn_index(&self.state, next_turn);
             return Some(next_turn);
         }
-        let depth = 3;
+        let depth = 4;
 
         let options: Vec<MetaMove> = self
             .metamoves
