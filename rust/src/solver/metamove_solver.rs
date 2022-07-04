@@ -65,7 +65,7 @@ impl Iterator for MetaMoveSolver {
                 .get_derived_state_turn_index(&self.state, next_turn);
             return Some(next_turn);
         }
-        let depth = 2;
+        let depth = 3;
 
         let options: Vec<MetaMove> = self
             .metamoves
