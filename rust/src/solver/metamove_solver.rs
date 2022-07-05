@@ -13,6 +13,7 @@ use web_sys::console;
 pub struct MetaMoveSolver {
     puzzle: Rc<TwistyPuzzle>,
     state: PuzzleState,
+    depth: usize,
     metamoves: Vec<MetaMove>,
     buffered_turns: VecDeque<usize>,
 }
@@ -24,7 +25,7 @@ impl ScrambleSolver for MetaMoveSolver {
         let metamoves: Vec<MetaMove> =
             discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 3, 7)
                 .into_iter()
-                .take(200)
+                .take(250)
                 .collect();
 
         if metamoves.is_empty() {
@@ -44,6 +45,7 @@ impl ScrambleSolver for MetaMoveSolver {
         Self {
             metamoves,
             puzzle,
+            depth: 2,
             state: initial_state,
             buffered_turns: VecDeque::new(),
         }
@@ -65,7 +67,6 @@ impl Iterator for MetaMoveSolver {
                 .get_derived_state_turn_index(&self.state, next_turn);
             return Some(next_turn);
         }
-        let depth = 3;
 
         let options: Vec<MetaMove> = self
             .metamoves
@@ -82,42 +83,10 @@ impl Iterator for MetaMoveSolver {
             )
             .collect();
 
-        let mut best_metamove = MetaMove::empty(&self.puzzle);
-        let mut best_score = self.puzzle.get_num_solved_pieces(&self.state);
-
-        traverse_combinations(
-            &options,
-            depth,
-            MetaMove {
-                turns: vec![],
-                face_map: FaceMap::identity(self.puzzle.get_num_faces()),
-                num_affected_pieces: 0,
-            },
-            &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
-                MetaMove::new(
-                    &self.puzzle,
-                    previous_metamove
-                        .turns
-                        .iter()
-                        .chain(new_metamove.turns.iter())
-                        .cloned()
-                        .collect(),
-                    previous_metamove.face_map.apply(&new_metamove.face_map),
-                )
-            },
-            &mut |mm| {
-                let next_state = self.puzzle.get_derived_state(&self.state, &mm.face_map);
-                let next_state_score = self.puzzle.get_num_solved_pieces(&next_state);
-                if next_state_score > best_score {
-                    best_metamove = mm.clone();
-                    best_score = next_state_score;
-                }
-                if next_state_score == self.puzzle.get_num_pieces() {
-                    return TraverseResult::Break;
-                }
-                TraverseResult::Continue
-            },
-        );
+        let mut best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
+        if best_metamove.turns.len() == 0 {
+            best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
+        }
 
         console::log_1(&format!("applying metamoves {} turns", best_metamove.turns.len()).into());
         let &first_turn = best_metamove.turns.get(0)?;
@@ -132,4 +101,37 @@ impl Iterator for MetaMoveSolver {
         }
         Some(first_turn)
     }
+}
+
+fn find_best_metamove(
+    puzzle: &TwistyPuzzle,
+    state: &PuzzleState,
+    metamoves: &[MetaMove],
+    depth: usize,
+) -> MetaMove {
+    let mut best_metamove = MetaMove::empty(puzzle);
+    let mut best_score = puzzle.get_num_solved_pieces(&state);
+
+    traverse_combinations(
+        metamoves,
+        depth,
+        MetaMove::empty(&puzzle),
+        &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
+            previous_metamove.apply(&puzzle, &new_metamove)
+        },
+        &mut |mm| {
+            let next_state = puzzle.get_derived_state(&state, &mm.face_map);
+            let next_state_score = puzzle.get_num_solved_pieces(&next_state);
+            if next_state_score > best_score {
+                best_metamove = mm.clone();
+                best_score = next_state_score;
+            }
+            if next_state_score == puzzle.get_num_pieces() {
+                return TraverseResult::Break;
+            }
+            TraverseResult::Continue
+        },
+    );
+
+    best_metamove
 }

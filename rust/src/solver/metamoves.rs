@@ -33,6 +33,17 @@ impl MetaMove {
             num_affected_pieces: 0,
         }
     }
+    pub fn apply(&self, puzzle: &TwistyPuzzle, other: &MetaMove) -> Self {
+        MetaMove::new(
+            &puzzle,
+            self.turns
+                .iter()
+                .chain(other.turns.iter())
+                .cloned()
+                .collect(),
+            self.face_map.apply(&other.face_map),
+        )
+    }
 }
 
 impl PartialEq for MetaMove {
@@ -106,8 +117,10 @@ where
                 return TraverseResult::Skip;
             }
 
-            if filter(metamove) {
-                best_metamoves.push(metamove.clone());
+            if metamove.num_affected_pieces > 0 {
+                if filter(metamove) {
+                    best_metamoves.push(metamove.clone());
+                }
             }
             TraverseResult::Continue
         },

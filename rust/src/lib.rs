@@ -362,7 +362,7 @@ fn init() -> Result<(), JsValue> {
         let rerender = move || {
             let mut state = state.borrow_mut();
             if !state.turn_queue.is_empty() {
-                if state.turn_progress > 1.0 {
+                if state.turn_progress >= 1.0 {
                     state.puzzle_state = state
                         .puzzle
                         .get_derived_state_turn_index(&state.puzzle_state, state.turn_queue[0]);
@@ -372,7 +372,7 @@ fn init() -> Result<(), JsValue> {
                         solve_next_step(&mut state);
                     }
                 } else {
-                    state.turn_progress += 0.02;
+                    state.turn_progress = f64::min(state.turn_progress + 0.07, 1.0);
                 }
             }
             if !unsafe { CURSOR_DOWN } {
@@ -383,7 +383,7 @@ fn init() -> Result<(), JsValue> {
         let time_listener = Closure::wrap(Box::new(rerender) as Box<dyn FnMut()>);
         window.set_interval_with_callback_and_timeout_and_arguments_0(
             time_listener.as_ref().unchecked_ref(),
-            1,
+            10,
         )?;
         time_listener.forget();
     }

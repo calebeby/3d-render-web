@@ -255,10 +255,12 @@ impl TwistyPuzzle {
         }
     }
 
+    #[inline]
     pub fn get_num_faces(&self) -> usize {
         self.faces.len()
     }
 
+    #[inline]
     pub fn get_num_pieces(&self) -> usize {
         self.pieces.len()
     }
