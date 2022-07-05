@@ -1,5 +1,5 @@
-use crate::vector3d::Vector3D;
 use crate::plane::Plane;
+use crate::vector3d::Vector3D;
 use std::collections::VecDeque;
 use std::f64::consts::{PI, TAU};
 
@@ -58,6 +58,8 @@ impl Face {
 pub struct Polyhedron {
     pub faces: Vec<Face>,
     pub vertices: Vec<Vector3D>,
+    /// Distance from the origin to the center of a face
+    pub inradius: f64,
 }
 
 impl Polyhedron {
@@ -139,7 +141,33 @@ impl Polyhedron {
             faces.push(new_face);
         }
 
-        Polyhedron { faces, vertices }
+        Polyhedron {
+            faces,
+            vertices,
+            inradius,
+        }
+    }
+    pub fn face_pairs(&self) -> Vec<(&Face, &Face)> {
+        let mut face_pairs = vec![None; self.faces.len()];
+        let mut paired_faces: Vec<(&Face, &Face)> = vec![];
+        for (i, face) in self.faces.iter().enumerate() {
+            if face_pairs[i].is_some() {
+                continue;
+            }
+            let opposite_face = self.faces.iter().enumerate().find(|(j, f)| {
+                if *j == i || face_pairs[*j].is_some() {
+                    return false;
+                }
+                let cross_product = f.plane().normal.cross(&face.plane().normal);
+                cross_product.magnitude().abs() < 1e-8
+            });
+            if let Some((opposite_face_index, opposite_face)) = opposite_face {
+                face_pairs[i] = Some(opposite_face_index);
+                face_pairs[opposite_face_index] = Some(i);
+                paired_faces.push((face, opposite_face));
+            }
+        }
+        paired_faces
     }
 }
 

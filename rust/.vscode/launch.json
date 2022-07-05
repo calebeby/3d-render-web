@@ -1,0 +1,82 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'train'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=train",
+                    "--package=rust"
+                ],
+                "filter": {
+                    "name": "train",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'train'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=train",
+                    "--package=rust"
+                ],
+                "filter": {
+                    "name": "train",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'gen-train'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=gen-train",
+                    "--package=rust"
+                ],
+                "filter": {
+                    "name": "gen-train",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'gen-train'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=gen-train",
+                    "--package=rust"
+                ],
+                "filter": {
+                    "name": "gen-train",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

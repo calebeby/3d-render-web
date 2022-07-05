@@ -59,7 +59,7 @@ pub(crate) struct Turn {
 }
 
 pub struct TwistyPuzzle {
-    faces: Vec<PieceFace>,
+    pub faces: Vec<PieceFace>,
     pub(crate) turns: Vec<Turn>,
     pub turn_names: Vec<String>,
     // Each piece is a vector of its face indexes
@@ -119,8 +119,8 @@ impl TwistyPuzzle {
                 affecting_turn_indices,
             } in &faces
             {
-                let mut vertices_above_plane: Vec<Vector3D> = vec![];
-                let mut vertices_below_plane: Vec<Vector3D> = vec![];
+                let mut vertices_above_plane = VertexList::new();
+                let mut vertices_below_plane = VertexList::new();
                 // Pairs of (vertex, is_above_cut_plane)
                 let vertices_with_status: Vec<_> = face
                     .vertices
@@ -128,10 +128,9 @@ impl TwistyPuzzle {
                     // Make the last vertex appear again at the end so all edges are included
                     .chain(std::iter::once(&face.vertices[0]))
                     .map(|vertex| {
-                        (
-                            vertex,
-                            (vertex - cut.plane.point).dot(&cut.plane.normal) > 0.0,
-                        )
+                        let is_above_cut_plane =
+                            (vertex - cut.plane.point).dot(&cut.plane.normal) > 0.0;
+                        (vertex, is_above_cut_plane)
                     })
                     .collect();
                 let edges = vertices_with_status.windows(2);
@@ -153,10 +152,15 @@ impl TwistyPuzzle {
                             point: vertex_a,
                             direction: vertex_a - &vertex_b,
                         };
-                        vertices_above_plane.push(cut_plane_outer.intersection(&edge_ray));
-                        vertices_below_plane.push(cut_plane_inner.intersection(&edge_ray));
+                        let above_intersection = cut_plane_outer.intersection(&edge_ray);
+                        let below_intersection = cut_plane_inner.intersection(&edge_ray);
+                        vertices_above_plane.push(above_intersection);
+                        vertices_below_plane.push(below_intersection);
                     }
                 }
+                let vertices_above_plane = vertices_above_plane.to_vec();
+                let vertices_below_plane = vertices_below_plane.to_vec();
+
                 if vertices_above_plane.len() > 2 {
                     let mut new_affecting_turn_indices = affecting_turn_indices.clone();
                     new_affecting_turn_indices.push(forwards_turn_index);
@@ -226,6 +230,7 @@ impl TwistyPuzzle {
                                         old_location.approx_equals(&new_location)
                                     })
                                     .unwrap_or(i)
+                                // .unwrap_or(usize::MAX)
                             } else {
                                 // this turn does not affect this face; map to itself
                                 i
@@ -389,3 +394,32 @@ impl TwistyPuzzle {
 }
 
 pub type PuzzleState = Vec<usize>;
+
+// A Vec<Vector3D> but it prevents two adjacent items from being equal or approx equal
+// Also prevents the first and last from being equal or approx equal
+struct VertexList {
+    vec: Vec<Vector3D>,
+}
+
+impl VertexList {
+    fn new() -> Self {
+        VertexList { vec: vec![] }
+    }
+    fn push(&mut self, vertex: Vector3D) {
+        match self.vec.last() {
+            Some(last) if last.approx_equals(&vertex) => {}
+            _ => {
+                self.vec.push(vertex);
+            }
+        };
+    }
+    fn to_vec(mut self) -> Vec<Vector3D> {
+        match (self.vec.first(), self.vec.last()) {
+            (Some(first), Some(last)) if first.approx_equals(&last) => {
+                self.vec.pop();
+            }
+            _ => {}
+        };
+        self.vec
+    }
+}

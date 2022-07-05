@@ -1,8 +1,9 @@
 use std::f64::consts::TAU;
 
 use crate::plane::Plane;
-use crate::polyhedron::Polyhedron;
+use crate::polyhedron::{Face, Polyhedron};
 use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
+use crate::vector3d::Vector3D;
 
 fn tetrahedron() -> Polyhedron {
     Polyhedron::generate(3, 3)
@@ -47,13 +48,15 @@ pub fn starminx() -> TwistyPuzzle {
 }
 
 pub fn eitans_star() -> TwistyPuzzle {
-    let icosahedron = dodecahedron();
+    let icosahedron = icosahedron();
     TwistyPuzzle::new(
         &icosahedron,
         &icosahedron
             .faces
             .iter()
-            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.29), TAU / 3.0))
+            // This cut is positioned to create an extra edge piece that doesn't exist on the real thing
+            // To prevent zero-size pieces from being created
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.27), TAU / 3.0))
             .collect::<Vec<_>>(),
     )
 }
@@ -118,15 +121,27 @@ pub fn pentultimate() -> TwistyPuzzle {
     TwistyPuzzle::new(
         &dodecahedron,
         &dodecahedron
-            .vertices
+            .face_pairs()
             .iter()
-            .map(|vertex| {
-                let plane = Plane {
-                    point: *vertex,
-                    normal: *vertex,
-                };
-                CutDefinition::new_infer_name(plane.offset(-0.1), TAU / 3.0)
+            // .take(2)
+            .map(|(face, _opposite_face)| {
+                CutDefinition::new_infer_name(
+                    face.plane().offset(-dodecahedron.inradius),
+                    TAU / 5.0,
+                )
             })
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub fn master_pentultimate() -> TwistyPuzzle {
+    let dodecahedron = dodecahedron();
+    TwistyPuzzle::new(
+        &dodecahedron,
+        &dodecahedron
+            .faces
+            .iter()
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(-1.03), TAU / 5.0))
             .collect::<Vec<_>>(),
     )
 }
@@ -219,6 +234,39 @@ mod tests {
     fn test_pyraminx() {
         let puzzle = pyraminx();
         assert_eq!(puzzle.get_num_faces(), 7 * 4);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_pentultimate() {
+        let puzzle = pentultimate();
+        assert_eq!(puzzle.get_num_faces(), 6 * 12);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_master_pentultimate() {
+        let puzzle = master_pentultimate();
+        assert_eq!(puzzle.get_num_faces(), 16 * 12);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_eitans_star() {
+        let puzzle = eitans_star();
+        assert_eq!(puzzle.get_num_faces(), 16 * 20);
 
         let initial_state = puzzle.get_initial_state();
         let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
