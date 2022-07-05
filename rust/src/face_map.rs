@@ -30,7 +30,6 @@ impl FaceMap {
     pub fn is_inverse_of(&self, other: &FaceMap) -> bool {
         for (i, val) in self.0.iter().enumerate() {
             if other.0[*val] != i {
-                println!("i={i}, val={val}");
                 return false;
             }
         }

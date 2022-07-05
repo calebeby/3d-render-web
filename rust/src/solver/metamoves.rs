@@ -144,13 +144,20 @@ mod tests {
         // TODO: test filter
         let all_metamoves_2_moves = discover_metamoves(&puzzle, |_| true, 2);
 
-        assert_eq!(all_metamoves_2_moves.len(), 27);
+        assert_eq!(all_metamoves_2_moves.len(), 30);
 
         assert_debug_snapshot!(all_metamoves_2_moves
             .iter()
             .map(|mm| (mm.num_affected_pieces, mm.turns.clone()))
             .collect::<Vec<_>>(), @r###"
         [
+            (
+                4,
+                [
+                    5,
+                    5,
+                ],
+            ),
             (
                 4,
                 [
@@ -161,8 +168,22 @@ mod tests {
             (
                 4,
                 [
+                    3,
+                    3,
+                ],
+            ),
+            (
+                4,
+                [
                     2,
                     2,
+                ],
+            ),
+            (
+                4,
+                [
+                    1,
+                    1,
                 ],
             ),
             (
@@ -354,8 +375,7 @@ mod tests {
         }
 
         let all_metamoves_4_moves = discover_metamoves(&puzzle, |_| true, 4);
-        assert_eq!(all_metamoves_4_moves.len(), 693);
-        assert_eq!(all_metamoves_4_moves[0].turns, [4, 4]);
+        assert_eq!(all_metamoves_4_moves.len(), 924);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 4);
     }
 
@@ -366,7 +386,7 @@ mod tests {
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 3);
         assert_eq!(all_metamoves_4_moves[0].turns, [7, 5, 6, 4]);
 
-        assert_eq!(all_metamoves_4_moves.len(), 2304);
+        assert_eq!(all_metamoves_4_moves.len(), 3184);
         assert_eq!(
             all_metamoves_4_moves
                 .iter()
@@ -383,7 +403,7 @@ mod tests {
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 7);
         assert_eq!(all_metamoves_4_moves[0].turns, [11, 9, 10, 8]);
 
-        assert_eq!(all_metamoves_4_moves.len(), 11280);
+        assert_eq!(all_metamoves_4_moves.len(), 17520);
         assert_eq!(
             all_metamoves_4_moves
                 .iter()

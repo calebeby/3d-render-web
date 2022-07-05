@@ -3,7 +3,6 @@ use super::{
     ScrambleSolver,
 };
 use crate::{
-    face_map::FaceMap,
     traverse_combinations::{traverse_combinations, TraverseResult},
     twisty_puzzle::{PuzzleState, TwistyPuzzle},
 };
