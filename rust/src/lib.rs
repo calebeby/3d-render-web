@@ -438,16 +438,23 @@ fn render<T: ScrambleSolver>(
         }
     }
 
-    let orange = Color::new(254, 133, 57);
-    let white = Color::new(231, 224, 220);
-    let blue = Color::new(45, 81, 157);
-    let red = Color::new(221, 30, 18);
-    let dark_red = Color::new(143, 33, 25);
-    let green = Color::new(35, 168, 74);
-    let yellow = Color::new(219, 226, 35);
-    let purple = Color::new(197, 107, 197);
+    let white = "#ffffff";
+    let blue = "#1976d2";
+    let orange = "#ff5722";
+    let green = "#7cb342";
+    let red = "#d32f2f";
+    let yellow = "#ffeb3b";
+    let purple = "#5e35b1";
+    let dark_red = "#6a1111";
+    let dark_blue = "#0a3576";
+    let dark_green = "#174f1b";
+    let pink = "#e758b4";
+    let grey = "#a0a0a0";
 
-    let colors = [white, blue, orange, green, red, yellow, purple, dark_red];
+    let colors = [
+        white, blue, orange, green, red, yellow, // 1-6
+        purple, dark_red, dark_blue, dark_green, pink, grey, // 7-12
+    ];
 
     let uncolored_faces = if !state.turn_queue.is_empty() {
         state.puzzle.get_physically_turned_faces(
@@ -486,7 +493,7 @@ fn render<T: ScrambleSolver>(
     canvas_ctx.fill_rect(0.0, 0.0, width.into(), height.into());
 
     for polygon in seen_faces {
-        canvas_ctx.set_fill_style(&polygon.color.to_hex_str().into());
+        canvas_ctx.set_fill_style(&polygon.color.into());
         canvas_ctx.begin_path();
         for point in polygon.points {
             canvas_ctx.line_to(point.0 + width as f64 / 2.0, point.1 + height as f64 / 2.0);
@@ -511,25 +518,9 @@ fn render<T: ScrambleSolver>(
         .unwrap();
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-}
-
-impl Color {
-    fn new(r: u8, g: u8, b: u8) -> Color {
-        Color { r, g, b }
-    }
-    fn to_hex_str(&self) -> String {
-        format!("#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
-    }
-}
-
 struct SeenFace {
     points: Vec<(f64, f64)>,
-    color: Color,
+    color: &'static str,
     distance_from_camera: f64,
 }
 
@@ -593,5 +584,5 @@ impl Camera {
 
 struct FaceWithColor<'a> {
     face: &'a Face,
-    color: Color,
+    color: &'static str,
 }
