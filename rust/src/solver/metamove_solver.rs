@@ -25,7 +25,7 @@ impl ScrambleSolver for MetaMoveSolver {
         let metamoves: Vec<MetaMove> =
             discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 3, 7)
                 .into_iter()
-                .take(250)
+                .take(300)
                 .collect();
 
         if metamoves.is_empty() {
