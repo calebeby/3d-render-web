@@ -1,8 +1,7 @@
 use crate::traverse_combinations::{traverse_combinations, TraverseResult};
-use crate::twisty_puzzle::{PuzzleState, Turn};
+use crate::twisty_puzzle::Turn;
 use crate::{face_map::FaceMap, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
 
 /// A metamove is a set of moves that combines to one large "move"
 /// that ends up (hopefully) moving only a small number of pieces.
@@ -68,13 +67,7 @@ pub fn discover_metamoves<Filter>(
 where
     Filter: Fn(&MetaMove) -> bool,
 {
-    let mut best_metamoves: BinaryHeap<MetaMove> = BinaryHeap::new();
-    // Each face map is stored with the fewest number of moves to achieve that face map.
-    let mut face_map_optimal_num_moves: HashMap<FaceMap, usize> = HashMap::new();
-    face_map_optimal_num_moves.insert(FaceMap::identity(puzzle.turns.len()), 0);
-    for turn in &puzzle.turns {
-        face_map_optimal_num_moves.insert(turn.face_map.clone(), 1);
-    }
+    let mut best_metamoves: Vec<MetaMove> = vec![];
 
     let turns: Vec<_> = puzzle.turns.iter().enumerate().collect();
 
@@ -101,38 +94,27 @@ where
         },
         &mut |metamove| {
             // Ignore "move sequences" if they are just one move
-            // Also ignore move sequences that cancel themselves out and have no effect
-            if metamove.turns.len() <= 1 || metamove.num_affected_pieces == 0 {
+            if metamove.turns.len() <= 1 {
                 return TraverseResult::Continue;
             }
 
-            // We want to maximize the number of solved pieces:
-            // minimize the number of pieces that were affected.
-
-            // A set of moves that has the same outcome as the current one.
-            let saved_equivalent_metamove = face_map_optimal_num_moves.get(&metamove.face_map);
-
-            match saved_equivalent_metamove {
-                Some(&saved_num_turns) if saved_num_turns <= metamove.turns.len() => {
-                    // If the saved metamove is better than the current metamove,
-                    // We don't need to expand this state,
-                    // because every derived state will also be more optimally solved
-                    // using the saved solutions than the current solution
-                    TraverseResult::Skip
-                }
-                _ => {
-                    if filter(metamove) {
-                        face_map_optimal_num_moves
-                            .insert(metamove.face_map.clone(), metamove.turns.len());
-                        best_metamoves.push(metamove.clone());
-                    }
-                    TraverseResult::Continue
-                }
+            // Ignore if last move inverts move before; that is useless
+            if puzzle.turns[metamove.turns[metamove.turns.len() - 1]]
+                .face_map
+                .is_inverse_of(&puzzle.turns[metamove.turns[metamove.turns.len() - 2]].face_map)
+            {
+                return TraverseResult::Skip;
             }
+
+            if filter(metamove) {
+                best_metamoves.push(metamove.clone());
+            }
+            TraverseResult::Continue
         },
     );
 
-    best_metamoves.into_sorted_vec()
+    best_metamoves.sort();
+    best_metamoves
 }
 
 #[cfg(test)]

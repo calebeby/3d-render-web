@@ -19,13 +19,22 @@ impl FaceMap {
     }
     pub fn invert(&self) -> FaceMap {
         let mut inverted_face_map = vec![0; self.0.len()];
-        for (val, i) in self.0.iter().enumerate() {
-            inverted_face_map[*i] = val;
+        for (i, val) in self.0.iter().enumerate() {
+            inverted_face_map[*val] = i;
         }
         FaceMap(inverted_face_map)
     }
     pub fn identity(count: usize) -> FaceMap {
         FaceMap((0..count).into_iter().collect())
+    }
+    pub fn is_inverse_of(&self, other: &FaceMap) -> bool {
+        for (i, val) in self.0.iter().enumerate() {
+            if other.0[*val] != i {
+                println!("i={i}, val={val}");
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -42,6 +51,11 @@ mod tests {
         assert_eq!(combined_face_map.0, vec![1, 0, 2]);
         assert_eq!(initial_face_map.invert().0, vec![0, 2, 1]);
         assert_eq!(second_face_map.invert().0, vec![1, 2, 0]);
+
+        assert!(initial_face_map.invert().is_inverse_of(&initial_face_map));
+        assert!(!initial_face_map.invert().is_inverse_of(&second_face_map));
+        assert!(second_face_map.invert().is_inverse_of(&second_face_map));
+        assert!(!second_face_map.invert().is_inverse_of(&initial_face_map));
 
         assert_eq!(FaceMap::identity(3).0, vec![0, 1, 2]);
     }
