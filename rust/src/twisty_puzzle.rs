@@ -417,7 +417,7 @@ impl VertexList {
     }
     fn to_vec(mut self) -> Vec<Vector3D> {
         match (self.vec.first(), self.vec.last()) {
-            (Some(first), Some(last)) if first.approx_equals(&last) => {
+            (Some(first), Some(last)) if first.approx_equals(last) => {
                 self.vec.pop();
             }
             _ => {}

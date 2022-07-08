@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 pub(crate) use std::error::Error;
-use std::rc::Rc;
 
 use corgi::layer::Layer;
 use corgi::numbers::Float;
@@ -103,8 +102,6 @@ pub fn evaluate_state(state: Vec<Float>, model: &mut Model) -> f64 {
     normalize_output(row)
 }
 
-use corgi::array::*;
-use corgi::numbers::*;
 use corgi::optimizer::Optimizer;
 
 // #[cfg(feature = "openblas")]

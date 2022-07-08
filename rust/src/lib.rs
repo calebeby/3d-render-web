@@ -122,7 +122,7 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
+    let puzzle = Rc::new(puzzles::pentultimate());
 
     type S = MetaMoveSolver;
     let puzzle_state = puzzle.get_initial_state();
@@ -372,7 +372,7 @@ fn init() -> Result<(), JsValue> {
                         solve_next_step(&mut state);
                     }
                 } else {
-                    state.turn_progress = f64::min(state.turn_progress + 0.07, 1.0);
+                    state.turn_progress = f64::min(state.turn_progress + 0.11, 1.0);
                 }
             }
             if !unsafe { CURSOR_DOWN } {

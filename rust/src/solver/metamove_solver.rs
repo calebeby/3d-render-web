@@ -7,6 +7,7 @@ use crate::{
     twisty_puzzle::{PuzzleState, TwistyPuzzle},
 };
 use std::{collections::VecDeque, rc::Rc};
+use wasm_bindgen::throw_str;
 use web_sys::console;
 
 pub struct MetaMoveSolver {
@@ -21,14 +22,13 @@ impl ScrambleSolver for MetaMoveSolver {
     type Opts = ();
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
-        let metamoves: Vec<MetaMove> =
-            discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 3, 7)
-                .into_iter()
-                .take(300)
-                .collect();
+        let metamoves = discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 12, 4);
+        let plugin: Vec<_> = metamoves.into_iter().take(2).collect();
+        let metamoves = combine_metamoves(&puzzle, &plugin, 4);
+        let metamoves: Vec<MetaMove> = metamoves.into_iter().take(4).collect();
 
         if metamoves.is_empty() {
-            console::error_1(&("no metamoves").into());
+            throw_str("no metamoves");
         }
 
         console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
@@ -44,7 +44,7 @@ impl ScrambleSolver for MetaMoveSolver {
         Self {
             metamoves,
             puzzle,
-            depth: 2,
+            depth: 3,
             state: initial_state,
             buffered_turns: VecDeque::new(),
         }
@@ -83,7 +83,7 @@ impl Iterator for MetaMoveSolver {
             .collect();
 
         let mut best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
-        if best_metamove.turns.len() == 0 {
+        if best_metamove.turns.is_empty() {
             best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
         }
 
@@ -109,17 +109,17 @@ fn find_best_metamove(
     depth: usize,
 ) -> MetaMove {
     let mut best_metamove = MetaMove::empty(puzzle);
-    let mut best_score = puzzle.get_num_solved_pieces(&state);
+    let mut best_score = puzzle.get_num_solved_pieces(state);
 
     traverse_combinations(
         metamoves,
         depth,
-        MetaMove::empty(&puzzle),
+        MetaMove::empty(puzzle),
         &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
-            previous_metamove.apply(&puzzle, &new_metamove)
+            previous_metamove.apply(puzzle, new_metamove)
         },
         &mut |mm| {
-            let next_state = puzzle.get_derived_state(&state, &mm.face_map);
+            let next_state = puzzle.get_derived_state(state, &mm.face_map);
             let next_state_score = puzzle.get_num_solved_pieces(&next_state);
             if next_state_score > best_score {
                 best_metamove = mm.clone();
@@ -133,4 +133,26 @@ fn find_best_metamove(
     );
 
     best_metamove
+}
+
+fn combine_metamoves(puzzle: &TwistyPuzzle, metamoves: &[MetaMove], depth: usize) -> Vec<MetaMove> {
+    let mut combined_metamoves = vec![];
+
+    traverse_combinations(
+        metamoves,
+        depth,
+        MetaMove::empty(puzzle),
+        &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
+            previous_metamove.apply(puzzle, new_metamove)
+        },
+        &mut |mm| {
+            if mm.num_affected_pieces != 0 && mm.num_affected_pieces <= 8 {
+                combined_metamoves.push(mm.clone());
+            }
+            TraverseResult::Continue
+        },
+    );
+
+    combined_metamoves.sort();
+    combined_metamoves
 }

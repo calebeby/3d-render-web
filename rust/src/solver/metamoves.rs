@@ -35,7 +35,7 @@ impl MetaMove {
     }
     pub fn apply(&self, puzzle: &TwistyPuzzle, other: &MetaMove) -> Self {
         MetaMove::new(
-            &puzzle,
+            puzzle,
             self.turns
                 .iter()
                 .chain(other.turns.iter())
@@ -88,20 +88,15 @@ where
         MetaMove::empty(puzzle),
         &|previous_metamove: &MetaMove, (turn_index, turn): &(usize, &Turn)| {
             let face_map = previous_metamove.face_map.apply(&turn.face_map);
-            let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &face_map);
-            let num_affected_pieces =
-                puzzle.get_num_pieces() - puzzle.get_num_solved_pieces(&derived_state);
 
-            MetaMove {
-                num_affected_pieces,
-                face_map,
-                turns: previous_metamove
-                    .turns
-                    .iter()
-                    .chain(std::iter::once(turn_index))
-                    .cloned()
-                    .collect(),
-            }
+            let new_turns = previous_metamove
+                .turns
+                .iter()
+                .chain(std::iter::once(turn_index))
+                .cloned()
+                .collect();
+
+            MetaMove::new(puzzle, new_turns, face_map)
         },
         &mut |metamove| {
             // Ignore "move sequences" if they are just one move
@@ -117,10 +112,8 @@ where
                 return TraverseResult::Skip;
             }
 
-            if metamove.num_affected_pieces > 0 {
-                if filter(metamove) {
-                    best_metamoves.push(metamove.clone());
-                }
+            if metamove.num_affected_pieces > 0 && filter(metamove) {
+                best_metamoves.push(metamove.clone());
             }
             TraverseResult::Continue
         },
