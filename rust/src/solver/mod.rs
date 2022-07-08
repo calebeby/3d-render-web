@@ -5,12 +5,10 @@ mod full_search_solve;
 mod lookahead;
 mod metamove_solver;
 mod metamoves;
-mod neural_network_one_move;
 mod simple_one_move;
 pub use full_search_solve::{FullSearchSolver, FullSearchSolverOpts};
 pub use lookahead::{LookaheadSolver, LookaheadSolverOpts};
 pub use metamove_solver::MetaMoveSolver;
-pub use neural_network_one_move::NNOneMoveSolver;
 pub use simple_one_move::OneMoveSolver;
 
 pub struct Solver<T: ScrambleSolver> {

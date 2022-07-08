@@ -1,5 +1,6 @@
+#![allow(clippy::wrong_self_convention)]
+
 mod face_map;
-mod neural_network;
 mod plane;
 mod polyhedron;
 mod puzzles;
@@ -99,6 +100,7 @@ pub fn start() {
     }
 }
 
+#[allow(clippy::let_unit_value)]
 fn init() -> Result<(), JsValue> {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();

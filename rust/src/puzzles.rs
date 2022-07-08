@@ -7,21 +7,26 @@ use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
 fn tetrahedron() -> Polyhedron {
     Polyhedron::generate(3, 3)
 }
+
 fn cube() -> Polyhedron {
     Polyhedron::generate(4, 3)
 }
+
 fn octahedron() -> Polyhedron {
     Polyhedron::generate(3, 4)
 }
+
 fn dodecahedron() -> Polyhedron {
     Polyhedron::generate(5, 3)
 }
+
 fn icosahedron() -> Polyhedron {
     Polyhedron::generate(3, 5)
 }
 
 const RUBIKS_CUBE_CUT_NAMES: [&str; 6] = ["U", "F", "R", "B", "L", "D"];
 
+#[allow(dead_code)]
 pub fn megaminx() -> TwistyPuzzle {
     let dodecahedron = dodecahedron();
     TwistyPuzzle::new(
@@ -34,6 +39,7 @@ pub fn megaminx() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn starminx() -> TwistyPuzzle {
     let dodecahedron = dodecahedron();
     TwistyPuzzle::new(
@@ -46,6 +52,7 @@ pub fn starminx() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn eitans_star() -> TwistyPuzzle {
     let icosahedron = icosahedron();
     TwistyPuzzle::new(
@@ -60,6 +67,7 @@ pub fn eitans_star() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn rubiks_cube_3x3() -> TwistyPuzzle {
     let cube = cube();
     TwistyPuzzle::new(
@@ -79,6 +87,7 @@ pub fn rubiks_cube_3x3() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn rubiks_cube_2x2() -> TwistyPuzzle {
     let cube = cube();
     TwistyPuzzle::new(
@@ -97,6 +106,7 @@ pub fn rubiks_cube_2x2() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn compy_cube() -> TwistyPuzzle {
     let cube = cube();
     TwistyPuzzle::new(
@@ -115,6 +125,7 @@ pub fn compy_cube() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn pentultimate() -> TwistyPuzzle {
     let dodecahedron = dodecahedron();
     TwistyPuzzle::new(
@@ -133,6 +144,7 @@ pub fn pentultimate() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn master_pentultimate() -> TwistyPuzzle {
     let dodecahedron = dodecahedron();
     TwistyPuzzle::new(
@@ -145,6 +157,7 @@ pub fn master_pentultimate() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn dino_starminx() -> TwistyPuzzle {
     let dodecahedron = dodecahedron();
     TwistyPuzzle::new(
@@ -163,6 +176,7 @@ pub fn dino_starminx() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn pyraminx() -> TwistyPuzzle {
     let tetrahedron = tetrahedron();
     TwistyPuzzle::new(
@@ -181,6 +195,7 @@ pub fn pyraminx() -> TwistyPuzzle {
     )
 }
 
+#[allow(dead_code)]
 pub fn skewb_diamond() -> TwistyPuzzle {
     let octahedron = octahedron();
     TwistyPuzzle::new(

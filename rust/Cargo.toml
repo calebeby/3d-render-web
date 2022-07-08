@@ -1,35 +1,16 @@
 [package]
-name = "rust"
-version = "0.1.0"
+name = "twisty-puzzles"
+version = "0.0.0"
 authors = ["Caleb Eby <caleb.eby01@gmail.com>"]
 edition = "2018"
-
-[[bin]]
-name = "train"
-path = "src/train.rs"
-
-[[bin]]
-name = "gen-train"
-path = "src/generate_training_data.rs"
 
 [lib]
 crate-type = ["cdylib"]
 
-[features]
-serialize = []
-openblas = ["corgi/openblas", "dep:cblas-sys"]
-
 [dependencies]
 wasm-bindgen = "0.2.79"
-wee_alloc = "0.4.5"
 getrandom = { version = "0.2.6", features = ["js"] }
-serde_json = "1.0.81"
-serde = {version = "1.0.137", features = ["derive"]}
 rand = "0.8.5"
-csv = "1.1"
-corgi = { git = "https://github.com/calebeby/corgi" }
-plotlib = "0.5.1"
-cblas-sys = { version = "0.1.4", optional = true }
 
 [dev-dependencies]
 insta = "1.15.0"
