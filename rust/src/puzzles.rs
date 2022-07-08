@@ -126,14 +126,38 @@ pub fn compy_cube() -> TwistyPuzzle {
 }
 
 #[allow(dead_code)]
+pub fn skewb() -> TwistyPuzzle {
+    let cube = cube();
+    let opposite_vertex_pairs = cube.opposite_vertex_pairs();
+    let distance_between_opposites =
+        (opposite_vertex_pairs[0].0 - opposite_vertex_pairs[0].1).magnitude();
+
+    TwistyPuzzle::new(
+        &cube,
+        &opposite_vertex_pairs
+            .into_iter()
+            .map(|(&vertex_a, _vertex_b)| {
+                let plane = Plane {
+                    point: vertex_a,
+                    normal: vertex_a,
+                };
+                CutDefinition::new_infer_name(
+                    plane.offset(-distance_between_opposites / 2.0),
+                    TAU / 3.0,
+                )
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+#[allow(dead_code)]
 pub fn pentultimate() -> TwistyPuzzle {
     let dodecahedron = dodecahedron();
     TwistyPuzzle::new(
         &dodecahedron,
         &dodecahedron
-            .face_pairs()
+            .opposite_face_pairs()
             .iter()
-            // .take(2)
             .map(|(face, _opposite_face)| {
                 CutDefinition::new_infer_name(
                     face.plane().offset(-dodecahedron.inradius),
@@ -203,6 +227,22 @@ pub fn skewb_diamond() -> TwistyPuzzle {
         &octahedron.faces[0..=3]
             .iter()
             .map(|face| CutDefinition::new_infer_name(face.plane().offset(-0.41), TAU / 3.0))
+            .collect::<Vec<_>>(),
+    )
+}
+
+#[allow(dead_code)]
+pub fn fto() -> TwistyPuzzle {
+    let octahedron = octahedron();
+    // There is a small extra piece in the center because of the + at the end there: 
+    // This is needed, otherwise there is a zero-size piece that messes things up
+    let cut_depth = -2.0 / 3.0 * octahedron.inradius + 0.02;
+    TwistyPuzzle::new(
+        &octahedron,
+        &octahedron
+            .faces
+            .iter()
+            .map(|face| CutDefinition::new_infer_name(face.plane().offset(cut_depth), TAU / 3.0))
             .collect::<Vec<_>>(),
     )
 }
@@ -281,6 +321,28 @@ mod tests {
     fn test_eitans_star() {
         let puzzle = eitans_star();
         assert_eq!(puzzle.get_num_faces(), 16 * 20);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_skewb() {
+        let puzzle = skewb();
+        assert_eq!(puzzle.get_num_faces(), 5 * 6);
+
+        let initial_state = puzzle.get_initial_state();
+        let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);
+        let turned_again_state = puzzle.get_derived_state_turn_index(&turned_state, 1);
+        assert_eq!(initial_state, turned_again_state);
+    }
+
+    #[test]
+    fn test_fto() {
+        let puzzle = fto();
+        assert_eq!(puzzle.get_num_faces(), 10 * 8);
 
         let initial_state = puzzle.get_initial_state();
         let turned_state = puzzle.get_derived_state_turn_index(&initial_state, 0);

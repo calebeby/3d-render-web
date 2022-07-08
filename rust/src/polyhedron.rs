@@ -137,7 +137,7 @@ impl Polyhedron {
             inradius,
         }
     }
-    pub fn face_pairs(&self) -> Vec<(&Face, &Face)> {
+    pub fn opposite_face_pairs(&self) -> Vec<(&Face, &Face)> {
         let mut face_pairs = vec![None; self.faces.len()];
         let mut paired_faces: Vec<(&Face, &Face)> = vec![];
         for (i, face) in self.faces.iter().enumerate() {
@@ -159,6 +159,28 @@ impl Polyhedron {
         }
         paired_faces
     }
+    pub fn opposite_vertex_pairs(&self) -> Vec<(&Vector3D, &Vector3D)> {
+        let mut vertex_pairs = vec![None; self.vertices.len()];
+        let mut paired_vertices: Vec<(&Vector3D, &Vector3D)> = vec![];
+        for (i, vertex) in self.vertices.iter().enumerate() {
+            if vertex_pairs[i].is_some() {
+                continue;
+            }
+            let opposite_vertex = self.vertices.iter().enumerate().find(|(j, v)| {
+                if *j == i || vertex_pairs[*j].is_some() {
+                    return false;
+                }
+                let cross_product = v.cross(vertex);
+                cross_product.magnitude().abs() < 1e-8
+            });
+            if let Some((opposite_vertex_index, opposite_vertex)) = opposite_vertex {
+                vertex_pairs[i] = Some(opposite_vertex_index);
+                vertex_pairs[opposite_vertex_index] = Some(i);
+                paired_vertices.push((vertex, opposite_vertex));
+            }
+        }
+        paired_vertices
+    }
 }
 
 #[derive(Debug)]
@@ -175,4 +197,3 @@ impl Edge {
             || (self.0.approx_equals(&other.1) && self.1.approx_equals(&other.0))
     }
 }
-
