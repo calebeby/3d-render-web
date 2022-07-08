@@ -265,19 +265,6 @@ impl TwistyPuzzle {
         self.pieces.len()
     }
 
-    pub fn get_num_solved_faces(&self, puzzle_state: &PuzzleState) -> usize {
-        puzzle_state
-            .iter()
-            .enumerate()
-            .fold(0, |num_solved_faces, (i, color_index)| {
-                if *color_index == self.faces[i].color_index {
-                    num_solved_faces + 1
-                } else {
-                    num_solved_faces
-                }
-            })
-    }
-
     pub fn get_num_solved_pieces(&self, puzzle_state: &PuzzleState) -> usize {
         let faces_solved_states: Vec<bool> = puzzle_state
             .iter()
@@ -363,6 +350,7 @@ impl TwistyPuzzle {
         self.get_derived_state(previous_state, face_map)
     }
 
+    #[allow(dead_code)]
     pub fn get_derived_state_from_turns_iter(
         &self,
         previous_state: &PuzzleState,

@@ -16,16 +16,6 @@ impl Face {
             .map(move |(i, vertex_a)| Edge(*vertex_a, self.vertices[(i + 1) % self.vertices.len()]))
     }
 
-    pub fn rotate_about_origin(&self, rotation_vector: Vector3D) -> Self {
-        Self {
-            vertices: self
-                .vertices
-                .iter()
-                .map(|vertex| vertex.rotate_about_origin(rotation_vector))
-                .collect(),
-        }
-    }
-
     pub fn rotate_about_axis(
         &self,
         rotation_vector: Vector3D,
@@ -186,6 +176,3 @@ impl Edge {
     }
 }
 
-fn to_degrees(rad: f64) -> f64 {
-    rad / std::f64::consts::PI * 180.0
-}
