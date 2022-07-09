@@ -2,6 +2,7 @@
 
 mod face_map;
 mod plane;
+mod point_in_space_map;
 mod polyhedron;
 mod puzzles;
 mod quaternion;

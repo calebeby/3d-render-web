@@ -101,7 +101,7 @@ impl Vector3D {
 }
 
 fn approx_equals(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-8
+    (a - b).abs() < 1e-10
 }
 
 impl std::fmt::Debug for Vector3D {
