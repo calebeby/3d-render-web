@@ -35,9 +35,13 @@ impl Rotation3D {
         &rotated_point + axis_position
     }
 
-    // /// Combine rotation axes into a single rotation axis,
-    // /// as if rotation_a was applied and then rotation_b
-    // pub fn combine_rotation_axes(rotation_a: Vector3D, rotation_b: Vector3D) -> Vector3D {}
+    /// Combine rotation axes into a single rotation axis,
+    /// as if rotation_a was applied and then rotation_b
+    pub fn combine_rotations(rotation_a: &Rotation3D, rotation_b: &Rotation3D) -> Rotation3D {
+        Self {
+            q: &rotation_b.q * &rotation_a.q,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -70,5 +74,18 @@ mod tests {
         assert!(rotate_about_x_axis_0
             .rotate_point_about_origin(&Vector3D::new(3.4, 2.5, 1.7))
             .approx_equals(&Vector3D::new(3.4, 2.5, 1.7)));
+    }
+
+    #[test]
+    fn test_combining_rotations() {
+        let rotation_a = Rotation3D::new(&Vector3D::new(-2.3, -2.4, 95.1), 1.64);
+        let rotation_b = Rotation3D::new(&Vector3D::new(-5.1, 5.4, -10.0), -0.3);
+        let combined_rotation = Rotation3D::combine_rotations(&rotation_a, &rotation_b);
+
+        let pt1 = Vector3D::new(0.2, -0.5, 92.0);
+
+        assert!(rotation_b
+            .rotate_point_about_origin(&rotation_a.rotate_point_about_origin(&pt1))
+            .approx_equals(&combined_rotation.rotate_point_about_origin(&pt1)))
     }
 }
