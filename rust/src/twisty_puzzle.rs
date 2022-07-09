@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::face_map::FaceMap;
 use crate::point_in_space_map::PointInSpaceMap;
+use crate::rotation3d::Rotation3D;
 use rand::distributions::Uniform;
 use rand::Rng;
 
@@ -47,6 +48,7 @@ pub struct PieceFace {
 
 #[derive(Debug)]
 struct PhysicalTurn {
+    rotation_amount: f64,
     rotation_axis: Vector3D,
     rotation_axis_point: Vector3D,
 }
@@ -94,18 +96,20 @@ impl TwistyPuzzle {
             .collect();
         for (turn_name, cut) in cuts_with_names {
             let inverted_turn_name = format!("{}'", turn_name);
-            let rotation_axis = -1.0 * cut.rotation_angle * cut.plane.normal.to_unit_vector();
+            let rotation_axis = cut.plane.normal.to_unit_vector();
             physical_turns.push((
                 turn_name.clone(),
                 PhysicalTurn {
-                    rotation_axis,
+                    rotation_amount: cut.rotation_angle,
+                    rotation_axis: -1.0 * rotation_axis,
                     rotation_axis_point: cut.plane.point,
                 },
             ));
             physical_turns.push((
                 inverted_turn_name.clone(),
                 PhysicalTurn {
-                    rotation_axis: -1.0 * rotation_axis,
+                    rotation_amount: cut.rotation_angle,
+                    rotation_axis,
                     rotation_axis_point: cut.plane.point,
                 },
             ));
@@ -217,6 +221,8 @@ impl TwistyPuzzle {
             .into_iter()
             .enumerate()
             .map(|(turn_index, (turn_name, physical_turn))| {
+                let rotation =
+                    Rotation3D::new(&physical_turn.rotation_axis, physical_turn.rotation_amount);
                 let face_map = FaceMap(
                     faces
                         .iter()
@@ -224,9 +230,9 @@ impl TwistyPuzzle {
                         .map(|(i, face)| {
                             if face.affecting_turn_indices.contains(&turn_index) {
                                 let original_location = &face_centers[i];
-                                let new_location = original_location.rotate_about_axis(
-                                    physical_turn.rotation_axis,
-                                    physical_turn.rotation_axis_point,
+                                let new_location = rotation.rotate_point_about_positioned_axis(
+                                    original_location,
+                                    &physical_turn.rotation_axis_point,
                                 );
                                 // Find the index in the old faces array
                                 // which corresponds to the new position
@@ -305,16 +311,19 @@ impl TwistyPuzzle {
         interpolate_amount: f64,
     ) -> Vec<PieceFace> {
         let cut = &self.turns[turn_index];
+        let rotation = Rotation3D::new(
+            &cut.physical_turn.rotation_axis,
+            cut.physical_turn.rotation_amount * interpolate_amount,
+        );
         let new_faces = self
             .faces
             .iter()
             .enumerate()
             .map(|(i, piece_face)| PieceFace {
                 face: if piece_face.affecting_turn_indices.contains(&turn_index) {
-                    piece_face.face.rotate_about_axis(
-                        interpolate_amount * cut.physical_turn.rotation_axis,
-                        cut.physical_turn.rotation_axis_point,
-                    )
+                    piece_face
+                        .face
+                        .rotate_about_axis(&rotation, &cut.physical_turn.rotation_axis_point)
                 } else {
                     piece_face.face.clone()
                 },

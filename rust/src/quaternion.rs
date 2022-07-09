@@ -9,9 +9,11 @@ pub struct Quaternion {
 }
 
 impl Quaternion {
+    #[inline]
     pub fn new(real: f64, i: f64, j: f64, k: f64) -> Quaternion {
         Quaternion { real, i, j, k }
     }
+    #[inline]
     pub fn from_vector(vector: &Vector3D) -> Quaternion {
         Quaternion {
             real: 0.0,
@@ -20,6 +22,7 @@ impl Quaternion {
             k: vector.z,
         }
     }
+    #[inline]
     pub fn to_vector(&self) -> Vector3D {
         Vector3D {
             x: self.i,
@@ -27,6 +30,7 @@ impl Quaternion {
             z: self.k,
         }
     }
+    #[inline]
     pub fn conjugate(&self) -> Quaternion {
         Quaternion {
             real: self.real,

@@ -1,4 +1,5 @@
 use crate::plane::Plane;
+use crate::rotation3d::Rotation3D;
 use crate::vector3d::Vector3D;
 use std::collections::VecDeque;
 use std::f64::consts::{PI, TAU};
@@ -18,14 +19,16 @@ impl Face {
 
     pub fn rotate_about_axis(
         &self,
-        rotation_vector: Vector3D,
-        rotation_axis_position: Vector3D,
+        rotation: &Rotation3D,
+        rotation_axis_position: &Vector3D,
     ) -> Self {
         Self {
             vertices: self
                 .vertices
                 .iter()
-                .map(|vertex| vertex.rotate_about_axis(rotation_vector, rotation_axis_position))
+                .map(|vertex| {
+                    rotation.rotate_point_about_positioned_axis(vertex, rotation_axis_position)
+                })
                 .rev() // Need to be reversed because rotation flips the direction of the face, so we need to flip the order back (otherwise the subsequent folds will be the wrong direction)
                 .collect(),
         }
@@ -73,11 +76,16 @@ impl Polyhedron {
 
         let mut vertices = vec![];
 
+        let z_axis = Vector3D::new(0.0, 0.0, 1.0);
         // Base polygon
         for i in 0..p {
             let rotation_amount = angle_between_vertices * i as f64;
-            let vertex = Vector3D::new(vertex_to_face_center, 0.0, inradius)
-                .rotate_about_origin(Vector3D::new(0.0, 0.0, rotation_amount));
+            let rotation = Rotation3D::new(&z_axis, rotation_amount);
+            let vertex = rotation.rotate_point_about_origin(&Vector3D::new(
+                vertex_to_face_center,
+                0.0,
+                inradius,
+            ));
             bottom_vertices.push(vertex);
         }
 
@@ -98,9 +106,9 @@ impl Polyhedron {
         while let Some(queued_edge) = incomplete_edges.pop_front() {
             let Edge(vertex_a, vertex_b) = &queued_edge.edge;
             let existing_face = &faces[queued_edge.face_index];
-            let rotation_axis_direction = &(vertex_a - vertex_b).to_unit_vector();
-            let rotation_vector = rotation_axis_direction * (dihedral_angle);
-            let new_face = existing_face.rotate_about_axis(rotation_vector, *vertex_a);
+            let rotation_axis = &(vertex_a - vertex_b).to_unit_vector();
+            let rotation = Rotation3D::new(rotation_axis, dihedral_angle);
+            let new_face = existing_face.rotate_about_axis(&rotation, vertex_a);
             // It is possible that this face will create an edge that is already queued.
             // If it does, it needs to remove that edge
             // (because now it is a complete edge with two attached faces)

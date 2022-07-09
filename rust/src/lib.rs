@@ -7,6 +7,7 @@ mod polyhedron;
 mod puzzles;
 mod quaternion;
 mod ray;
+mod rotation3d;
 mod solver;
 mod traverse_combinations;
 mod twisty_puzzle;
@@ -21,6 +22,7 @@ use crate::solver::{MetaMoveSolver, ScrambleSolver, Solver};
 use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
 use polyhedron::Face;
+use rotation3d::Rotation3D;
 use twisty_puzzle::{PieceFace, PuzzleState};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -64,22 +66,16 @@ fn compute_camera_position_from_orbit(
     let rotation_d_theta = start_cursor_vector.dot(&end_cursor_vector)
         / (start_cursor_vector.magnitude() * end_cursor_vector.magnitude());
 
-    let rotation_vector = &rotation_axis * rotation_d_theta;
+    let rotation = Rotation3D::new(&rotation_axis, rotation_d_theta);
 
     Camera {
-        u_up: initial_camera.u_up.rotate_about_origin(rotation_vector),
-        u_right: initial_camera.u_right.rotate_about_origin(rotation_vector),
+        u_up: rotation.rotate_point_about_origin(&initial_camera.u_up),
+        u_right: rotation.rotate_point_about_origin(&initial_camera.u_right),
         plane: Plane {
-            point: initial_camera
-                .plane
-                .point
-                .rotate_about_origin(rotation_vector),
-            normal: initial_camera
-                .plane
-                .normal
-                .rotate_about_origin(rotation_vector),
+            point: rotation.rotate_point_about_origin(&initial_camera.plane.point),
+            normal: rotation.rotate_point_about_origin(&initial_camera.plane.normal),
         },
-        point: initial_camera.point.rotate_about_origin(rotation_vector),
+        point: rotation.rotate_point_about_origin(&initial_camera.point),
     }
 }
 

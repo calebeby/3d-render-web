@@ -1,4 +1,3 @@
-use crate::quaternion::Quaternion;
 use crate::ray::Ray;
 
 #[derive(Copy, Clone)]
@@ -47,35 +46,6 @@ impl Vector3D {
     }
     pub fn to_unit_vector(&self) -> Vector3D {
         self / self.magnitude()
-    }
-    /// The magnitude of the rotation vector is the angle of rotation (radians)
-    pub fn rotate_about_origin(&self, rotation_vector: Vector3D) -> Vector3D {
-        let rotation_amount = rotation_vector.magnitude();
-        if rotation_amount == 0.0 {
-            return *self;
-        }
-        let rotation_q_imaginary =
-            &rotation_vector.to_unit_vector() * (rotation_amount / 2.0).sin();
-        let q = Quaternion::new(
-            (rotation_amount / 2.0).cos(),
-            rotation_q_imaginary.x,
-            rotation_q_imaginary.y,
-            rotation_q_imaginary.z,
-        );
-        let result_quaternion = &(&q * &Quaternion::from_vector(self)) * &q.conjugate();
-        result_quaternion.to_vector()
-    }
-
-    pub fn rotate_about_axis(
-        &self,
-        rotation_vector: Vector3D,
-        rotation_axis_position: Vector3D,
-    ) -> Vector3D {
-        // Move the vector so the rotation axis is at the origin
-        let rebased_vector = self - rotation_axis_position;
-        let rotated_vector = rebased_vector.rotate_about_origin(rotation_vector);
-        // Move the vector back
-        &rotated_vector + &rotation_axis_position
     }
 
     pub fn approx_equals(&self, other: &Vector3D) -> bool {
