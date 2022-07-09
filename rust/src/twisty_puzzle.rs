@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::face_map::FaceMap;
+use crate::point_in_space_map::PointInSpaceMap;
 use rand::distributions::Uniform;
 use rand::Rng;
 
@@ -205,6 +206,11 @@ impl TwistyPuzzle {
             .map(|face| Vector3D::from_average(&face.face.vertices))
             .collect();
 
+        let mut original_face_centers_map = PointInSpaceMap::new();
+        for (i, face) in face_centers.iter().enumerate() {
+            original_face_centers_map.insert(*face, i);
+        }
+
         // try out each of the turns to determine the symmetries between pieces
         // and which faces map to which faces after each turn
         let (turn_names, turns): (Vec<_>, Vec<_>) = physical_turns
@@ -224,13 +230,7 @@ impl TwistyPuzzle {
                                 );
                                 // Find the index in the old faces array
                                 // which corresponds to the new position
-                                face_centers
-                                    .iter()
-                                    .position(|old_location| {
-                                        old_location.approx_equals(&new_location)
-                                    })
-                                    .unwrap_or(i)
-                                // .unwrap_or(usize::MAX)
+                                *original_face_centers_map.get(&new_location).unwrap_or(&i)
                             } else {
                                 // this turn does not affect this face; map to itself
                                 i
