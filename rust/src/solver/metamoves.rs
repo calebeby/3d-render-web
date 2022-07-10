@@ -1,6 +1,6 @@
 use crate::traverse_combinations::{traverse_combinations, TraverseResult};
 use crate::twisty_puzzle::Turn;
-use crate::{face_map::FaceMap, twisty_puzzle::TwistyPuzzle};
+use crate::{bijection::Bijection, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
 
 /// A metamove is a set of moves that combines to one large "move"
@@ -10,12 +10,12 @@ pub struct MetaMove {
     pub turns: Vec<usize>,
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
-    pub face_map: FaceMap,
+    pub face_map: Bijection,
     pub num_affected_pieces: usize,
 }
 
 impl MetaMove {
-    pub fn new(puzzle: &TwistyPuzzle, turns: Vec<usize>, face_map: FaceMap) -> Self {
+    pub fn new(puzzle: &TwistyPuzzle, turns: Vec<usize>, face_map: Bijection) -> Self {
         let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &face_map);
         let num_affected_pieces =
             puzzle.get_num_pieces() - puzzle.get_num_solved_pieces(&derived_state);
@@ -29,7 +29,7 @@ impl MetaMove {
     pub fn empty(puzzle: &TwistyPuzzle) -> Self {
         MetaMove {
             turns: vec![],
-            face_map: FaceMap::identity(puzzle.get_num_faces()),
+            face_map: Bijection::identity(puzzle.get_num_faces()),
             num_affected_pieces: 0,
         }
     }

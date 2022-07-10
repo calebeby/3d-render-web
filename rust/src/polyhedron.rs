@@ -103,6 +103,7 @@ impl Polyhedron {
             });
         }
 
+        // TODO use PointInSpaceMap here
         while let Some(queued_edge) = incomplete_edges.pop_front() {
             let Edge(vertex_a, vertex_b) = &queued_edge.edge;
             let existing_face = &faces[queued_edge.face_index];

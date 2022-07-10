@@ -1,6 +1,6 @@
 #![allow(clippy::wrong_self_convention)]
 
-mod face_map;
+mod bijection;
 mod plane;
 mod point_in_space_map;
 mod polyhedron;

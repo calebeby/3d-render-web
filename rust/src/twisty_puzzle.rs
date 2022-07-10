@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::f64::consts::TAU;
 
-use crate::face_map::FaceMap;
+use crate::bijection::Bijection;
 use crate::point_in_space_map::PointInSpaceMap;
 use crate::rotation3d::Rotation3D;
 use rand::distributions::Uniform;
@@ -57,7 +58,7 @@ struct PhysicalTurn {
 pub(crate) struct Turn {
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
-    pub(crate) face_map: FaceMap,
+    pub(crate) face_map: Bijection,
     physical_turn: PhysicalTurn,
 }
 
@@ -215,7 +216,7 @@ impl TwistyPuzzle {
             original_face_centers_map.insert(*face, i);
         }
 
-        // try out each of the turns to determine the symmetries between pieces
+        // try out each of the turns to determine the correspondence between pieces
         // and which faces map to which faces after each turn
         let (turn_names, turns): (Vec<_>, Vec<_>) = physical_turns
             .into_iter()
@@ -223,7 +224,7 @@ impl TwistyPuzzle {
             .map(|(turn_index, (turn_name, physical_turn))| {
                 let rotation =
                     Rotation3D::new(&physical_turn.rotation_axis, physical_turn.rotation_amount);
-                let face_map = FaceMap(
+                let face_map = Bijection(
                     faces
                         .iter()
                         .enumerate()
@@ -236,7 +237,7 @@ impl TwistyPuzzle {
                                 );
                                 // Find the index in the old faces array
                                 // which corresponds to the new position
-                                *original_face_centers_map.get(&new_location).unwrap_or(&i)
+                                *original_face_centers_map.get(&new_location).unwrap()
                             } else {
                                 // this turn does not affect this face; map to itself
                                 i
@@ -252,6 +253,90 @@ impl TwistyPuzzle {
                 (turn_name, turn)
             })
             .unzip();
+
+        let top_face = &polyhedron.faces[0];
+
+        let num_top_rotations = (TAU / turns[0].physical_turn.rotation_amount).round() as usize;
+        let top_rotation = Rotation3D::new(
+            &top_face.plane().point,
+            turns[0].physical_turn.rotation_amount,
+        );
+        // Face map which rotates the whole puzzle in a symmetric increment around the top face
+        let top_rotation_face_map = Bijection(
+            faces
+                .iter()
+                .enumerate()
+                .map(|(i, _face)| {
+                    let original_location = &face_centers[i];
+                    let new_location = top_rotation.rotate_point_about_origin(original_location);
+                    // Find the index in the old faces array
+                    // which corresponds to the new position
+                    *original_face_centers_map.get(&new_location).unwrap()
+                })
+                .collect(),
+        );
+
+        println!("top face center {:#?}", top_face.plane().point);
+        println!("top face vertices {:#?}", top_face.vertices);
+        let symmetries: Vec<_> = polyhedron
+            .faces
+            .iter()
+            .flat_map(|new_top_face| {
+                // Move the new_top_face to the top,
+                // and then rotate it to align it with the original top face position
+                let rotation_to_top_angle =
+                    Vector3D::angle_between(&new_top_face.plane().point, &top_face.plane().point);
+                let rotation_to_top_axis =
+                    if (rotation_to_top_angle - std::f64::consts::PI).abs() > std::f64::EPSILON {
+                        new_top_face.plane().point.cross(&top_face.plane().point)
+                    } else {
+                        // Rotation of 180deg, the cross product won't yield a useful result
+                        // (because of floating point error)
+                        // so we come up with a different axis for rotation
+                        Vector3D::new(0.0, 1.0, 0.0).cross(&top_face.plane().point)
+                    };
+                let rotation_to_top = Rotation3D::new(&rotation_to_top_axis, rotation_to_top_angle);
+                // Apply the rotation to one vertex of new_top_face and then align the vertex with
+                // one of the original vertex positions of the old top face
+                let new_vertex_position_unaligned =
+                    rotation_to_top.rotate_point_about_origin(&new_top_face.vertices[0]);
+                let top_alignment_rotation_axis = &top_face.plane().point;
+                let top_alignment_rotation_angle = Vector3D::angle_between(
+                    &(&new_vertex_position_unaligned - &top_face.plane().point),
+                    &(&top_face.vertices[0] - &top_face.plane().point),
+                );
+                let top_alignment_rotation =
+                    Rotation3D::new(top_alignment_rotation_axis, top_alignment_rotation_angle);
+                let combined_rotation =
+                    Rotation3D::combine_rotations(&rotation_to_top, &top_alignment_rotation);
+
+                // Face map that moves the selected face to the top face
+                let face_map_to_top = Bijection(
+                    faces
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _face)| {
+                            let original_location = &face_centers[i];
+                            let new_location =
+                                combined_rotation.rotate_point_about_origin(original_location);
+                            // Find the index in the old faces array
+                            // which corresponds to the new position
+                            *original_face_centers_map.get(&new_location).unwrap()
+                        })
+                        .collect(),
+                );
+
+                (1..num_top_rotations).fold(vec![face_map_to_top], |mut prev_maps, _| {
+                    prev_maps.push(prev_maps.last().unwrap().apply(&top_rotation_face_map));
+                    prev_maps
+                })
+            })
+            // .flat_map(|face_map| [face_map.invert(), face_map])
+            .collect();
+
+        let f: HashSet<Bijection> = HashSet::from_iter(symmetries);
+
+        println!("{:#?}", f.len());
 
         Self {
             faces,
@@ -341,7 +426,7 @@ impl TwistyPuzzle {
     pub fn get_derived_state(
         &self,
         previous_state: &PuzzleState,
-        face_map: &FaceMap,
+        face_map: &Bijection,
     ) -> PuzzleState {
         face_map
             .0
