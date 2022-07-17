@@ -256,11 +256,16 @@ impl TwistyPuzzle {
 
         let top_face = &polyhedron.faces[0];
 
-        let num_top_rotations = (TAU / turns[0].physical_turn.rotation_amount).round() as usize;
-        let top_rotation = Rotation3D::new(
-            &top_face.plane().point,
-            turns[0].physical_turn.rotation_amount,
+        let face_rotation_angle = Vector3D::angle_between(
+            &(&top_face.vertices[0] - &top_face.plane().point),
+            &(&top_face.vertices[1] - &top_face.plane().point),
         );
+        println!("{:#?} {:#?}", &top_face.vertices[0], &top_face.vertices[1]);
+        println!("face rotation angle {}", face_rotation_angle);
+        assert!((TAU / face_rotation_angle) % 1.0 < std::f64::EPSILON);
+        let num_top_rotations = (TAU / face_rotation_angle).round() as usize;
+        println!("num top rotations {}", num_top_rotations);
+        let top_rotation = Rotation3D::new(&top_face.plane().point, face_rotation_angle);
         // Face map which rotates the whole puzzle in a symmetric increment around the top face
         let top_rotation_face_map = Bijection(
             faces
@@ -290,7 +295,8 @@ impl TwistyPuzzle {
                     if (rotation_to_top_angle - std::f64::consts::PI).abs() > std::f64::EPSILON {
                         new_top_face.plane().point.cross(&top_face.plane().point)
                     } else {
-                        // Rotation of 180deg, the cross product won't yield a useful result
+                        // Rotation of 180deg (original bottom face becomes top)
+                        // the cross product won't yield a useful result
                         // (because of floating point error)
                         // so we come up with a different axis for rotation
                         Vector3D::new(0.0, 1.0, 0.0).cross(&top_face.plane().point)
@@ -304,6 +310,11 @@ impl TwistyPuzzle {
                 let top_alignment_rotation_angle = Vector3D::angle_between(
                     &(&new_vertex_position_unaligned - &top_face.plane().point),
                     &(&top_face.vertices[0] - &top_face.plane().point),
+                );
+                println!("top rot angle {}", rotation_to_top_angle / TAU * 360.0);
+                println!(
+                    "alignment angle {}",
+                    top_alignment_rotation_angle / TAU * 360.0
                 );
                 let top_alignment_rotation =
                     Rotation3D::new(top_alignment_rotation_axis, top_alignment_rotation_angle);
@@ -326,17 +337,31 @@ impl TwistyPuzzle {
                         .collect(),
                 );
 
-                (1..num_top_rotations).fold(vec![face_map_to_top], |mut prev_maps, _| {
+                let r = (1..num_top_rotations).fold(vec![face_map_to_top], |mut prev_maps, _| {
                     prev_maps.push(prev_maps.last().unwrap().apply(&top_rotation_face_map));
                     prev_maps
-                })
+                });
+                println!("face:");
+                for symmetry in &r {
+                    println!("- {:?}", symmetry);
+                }
+                println!("done with face");
+                r
             })
             // .flat_map(|face_map| [face_map.invert(), face_map])
             .collect();
 
+        println!("Non-unique symmetries: {:#?}", symmetries.len());
+        for symmetry in &symmetries {
+            println!("- {:?}", symmetry);
+        }
+
         let f: HashSet<Bijection> = HashSet::from_iter(symmetries);
 
-        println!("{:#?}", f.len());
+        println!("Unique symmetries: {:#?}", f.len());
+        for symmetry in &f {
+            println!("- {:?}", symmetry);
+        }
 
         Self {
             faces,
