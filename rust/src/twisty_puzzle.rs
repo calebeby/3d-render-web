@@ -262,7 +262,10 @@ impl TwistyPuzzle {
         );
         println!("{:#?} {:#?}", &top_face.vertices[0], &top_face.vertices[1]);
         println!("face rotation angle {}", face_rotation_angle);
+
+        #[cfg(test)]
         assert!((TAU / face_rotation_angle) % 1.0 < std::f64::EPSILON);
+
         let num_top_rotations = (TAU / face_rotation_angle).round() as usize;
         println!("num top rotations {}", num_top_rotations);
         let top_rotation = Rotation3D::new(&top_face.plane().point, face_rotation_angle);
