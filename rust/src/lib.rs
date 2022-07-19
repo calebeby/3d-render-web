@@ -121,7 +121,7 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let puzzle = Rc::new(puzzles::pentultimate());
+    let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
 
     type S = MetaMoveSolver;
     let puzzle_state = puzzle.get_initial_state();

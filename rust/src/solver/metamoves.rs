@@ -2,6 +2,7 @@ use crate::traverse_combinations::{traverse_combinations, TraverseResult};
 use crate::twisty_puzzle::Turn;
 use crate::{bijection::Bijection, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
+use std::ops::Range;
 
 /// A metamove is a set of moves that combines to one large "move"
 /// that ends up (hopefully) moving only a small number of pieces.
@@ -64,6 +65,11 @@ impl MetaMove {
             .map(|&turn_index| puzzle.inverted_turn_index(turn_index))
             .collect();
         MetaMove::new(puzzle, inverted_turns, self.face_map.invert())
+    }
+
+    /// Get a metamove representing a range of the turns of this metamove
+    pub fn slice(&self, puzzle: &TwistyPuzzle, range: Range<usize>) -> MetaMove {
+        MetaMove::new_infer_face_map(puzzle, self.turns[range].to_vec())
     }
 }
 
@@ -163,6 +169,20 @@ mod tests {
         assert_eq!(
             mm2.invert(&puzzle),
             MetaMove::new_infer_face_map(&puzzle, vec![6, 4, 2, 0])
+        );
+    }
+
+    #[test]
+    fn indexing() {
+        let puzzle = puzzles::rubiks_cube_3x3();
+        let mm1 = MetaMove::new_infer_face_map(&puzzle, vec![0, 1, 2]);
+        assert_eq!(
+            mm1.slice(&puzzle, 0..2),
+            MetaMove::new_infer_face_map(&puzzle, vec![0, 1])
+        );
+        assert_eq!(
+            mm1.slice(&puzzle, 1..3),
+            MetaMove::new_infer_face_map(&puzzle, vec![1, 2])
         );
     }
 

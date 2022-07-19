@@ -22,10 +22,19 @@ impl ScrambleSolver for MetaMoveSolver {
     type Opts = ();
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
-        let metamoves = discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 12, 4);
-        let plugin: Vec<_> = metamoves.into_iter().take(2).collect();
-        let metamoves = combine_metamoves(&puzzle, &plugin, 4);
-        let metamoves: Vec<MetaMove> = metamoves.into_iter().take(4).collect();
+        let metamoves = discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 7, 4);
+        let metamoves = combine_metamoves(&puzzle, &metamoves, 2, true);
+        let b = metamoves[0].num_affected_pieces;
+        let metamoves = metamoves
+            .into_iter()
+            .filter(|mm| mm.num_affected_pieces == b)
+            .collect::<Vec<_>>();
+        // let metamoves = combine_metamoves(&puzzle, &metamoves, 2, false);
+        // let b = metamoves[0].num_affected_pieces;
+        // let metamoves = metamoves
+        //     .into_iter()
+        //     .filter(|mm| mm.num_affected_pieces == b)
+        //     .collect::<Vec<_>>();
 
         if metamoves.is_empty() {
             throw_str("no metamoves");
@@ -44,7 +53,7 @@ impl ScrambleSolver for MetaMoveSolver {
         Self {
             metamoves,
             puzzle,
-            depth: 3,
+            depth: 2,
             state: initial_state,
             buffered_turns: VecDeque::new(),
         }
@@ -83,8 +92,33 @@ impl Iterator for MetaMoveSolver {
             .collect();
 
         let mut best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
+        // if best_metamove.turns.is_empty() {
+        //     console::log_1(&"special metamove".into());
+        //     best_metamove = find_best_metamove(
+        //         &self.puzzle,
+        //         &self.state,
+        //         &self
+        //             .metamoves
+        //             .iter()
+        //             .take(5)
+        //             .cloned()
+        //             // .chain(
+        //             //     self.puzzle
+        //             //         .turns
+        //             //         .iter()
+        //             //         .enumerate()
+        //             //         .map(|(turn_index, turn)| {
+        //             //             MetaMove::new(&self.puzzle, vec![turn_index], turn.face_map.clone())
+        //             //         }),
+        //             // )
+        //             .collect::<Vec<_>>(),
+        //         self.depth + 7,
+        //     );
+        // }
+
         if best_metamove.turns.is_empty() {
-            best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
+            console::log_1(&"I give up :(".into());
+            return None;
         }
 
         console::log_1(&format!("applying metamoves {} turns", best_metamove.turns.len()).into());
@@ -119,15 +153,27 @@ fn find_best_metamove(
             previous_metamove.apply(puzzle, new_metamove)
         },
         &mut |mm| {
-            let next_state = puzzle.get_derived_state(state, &mm.face_map);
+            // // if turns is ABCD, num_sandwiched_turns will be:
+            // // 0: means testing ABCD
+            // // 1: means testing ABCDA'
+            // // 2: means testing ABCDB'A'
+            // // 3: means testing ABCDC'B'A'
+            // for num_sandwiched_turns in 0..=mm.turns.len() - 1 {
+            //     let mm_sandwiched = mm.apply(
+            //         puzzle,
+            //         &mm.slice(puzzle, 0..num_sandwiched_turns).invert(puzzle),
+            //     );
+            let mm_sandwiched = mm;
+            let next_state = puzzle.get_derived_state(state, &mm_sandwiched.face_map);
             let next_state_score = puzzle.get_num_solved_pieces(&next_state);
             if next_state_score > best_score {
-                best_metamove = mm.clone();
+                best_metamove = mm_sandwiched.clone();
                 best_score = next_state_score;
             }
             if next_state_score == puzzle.get_num_pieces() {
                 return TraverseResult::Break;
             }
+            // }
             TraverseResult::Continue
         },
     );
@@ -135,7 +181,12 @@ fn find_best_metamove(
     best_metamove
 }
 
-fn combine_metamoves(puzzle: &TwistyPuzzle, metamoves: &[MetaMove], depth: usize) -> Vec<MetaMove> {
+fn combine_metamoves(
+    puzzle: &TwistyPuzzle,
+    metamoves: &[MetaMove],
+    depth: usize,
+    sandwich: bool,
+) -> Vec<MetaMove> {
     let mut combined_metamoves = vec![];
 
     traverse_combinations(
@@ -146,9 +197,26 @@ fn combine_metamoves(puzzle: &TwistyPuzzle, metamoves: &[MetaMove], depth: usize
             previous_metamove.apply(puzzle, new_metamove)
         },
         &mut |mm| {
-            if mm.num_affected_pieces != 0 && mm.num_affected_pieces <= 8 {
+            if sandwich {
+                // if turns is ABCD, num_sandwiched_turns will be:
+                // 0: means testing ABCD
+                // 1: means testing ABCDA'
+                // 2: means testing ABCDB'A'
+                // 3: means testing ABCDC'B'A'
+                for num_sandwiched_turns in 0..=mm.turns.len() - 1 {
+                    // console::log_1(&format!("n {}", num_sandwiched_turns).into());
+                    let mm_sandwiched = mm.apply(
+                        puzzle,
+                        &mm.slice(puzzle, 0..num_sandwiched_turns).invert(puzzle),
+                    );
+                    if mm_sandwiched.num_affected_pieces != 0 {
+                        combined_metamoves.push(mm_sandwiched.clone());
+                    }
+                }
+            } else if mm.num_affected_pieces != 0 {
                 combined_metamoves.push(mm.clone());
             }
+
             TraverseResult::Continue
         },
     );
