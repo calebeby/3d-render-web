@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::face_map::FaceMap;
+use crate::bijection::Bijection;
 use crate::point_in_space_map::PointInSpaceMap;
 use crate::rotation3d::Rotation3D;
 use rand::distributions::Uniform;
@@ -57,7 +57,7 @@ struct PhysicalTurn {
 pub(crate) struct Turn {
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
-    pub(crate) face_map: FaceMap,
+    pub(crate) face_map: Bijection,
     physical_turn: PhysicalTurn,
 }
 
@@ -223,7 +223,7 @@ impl TwistyPuzzle {
             .map(|(turn_index, (turn_name, physical_turn))| {
                 let rotation =
                     Rotation3D::new(&physical_turn.rotation_axis, physical_turn.rotation_amount);
-                let face_map = FaceMap(
+                let face_map = Bijection(
                     faces
                         .iter()
                         .enumerate()
@@ -354,7 +354,7 @@ impl TwistyPuzzle {
     pub fn get_derived_state(
         &self,
         previous_state: &PuzzleState,
-        face_map: &FaceMap,
+        face_map: &Bijection,
     ) -> PuzzleState {
         face_map
             .0
