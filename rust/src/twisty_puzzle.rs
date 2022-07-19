@@ -380,6 +380,19 @@ impl TwistyPuzzle {
     }
 
     #[inline]
+    pub fn inverted_turn_index(&self, turn_index: usize) -> usize {
+        // If turns array is [a, b, c, d]
+        // a and b are inverses, c and d are inverses
+        if turn_index % 2 == 0 {
+            // Even: get one above, e.g. a -> b, c -> d
+            turn_index + 1
+        } else {
+            // Odd: get one below, e.g. b -> a, d -> c
+            turn_index - 1
+        }
+    }
+
+    #[inline]
     pub fn get_num_pieces(&self) -> usize {
         self.pieces.len()
     }
@@ -473,7 +486,7 @@ impl TwistyPuzzle {
     }
 
     #[allow(dead_code)]
-    pub fn get_derived_state_from_turns_iter(
+    pub fn get_derived_state_from_turn_sequence(
         &self,
         previous_state: &PuzzleState,
         turns: impl Iterator<Item = usize>,
@@ -533,5 +546,30 @@ impl VertexList {
             _ => {}
         };
         self.vec
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::puzzles;
+
+    #[test]
+    fn test_inverted_turn_index() {
+        for puzzle in [
+            puzzles::megaminx(),
+            puzzles::rubiks_cube_2x2(),
+            puzzles::rubiks_cube_3x3(),
+            puzzles::pyraminx(),
+            puzzles::starminx(),
+        ] {
+            let s0 = puzzle.get_initial_state();
+            for turn_index in 0..puzzle.turns.len() {
+                let s1 = puzzle.get_derived_state_turn_index(&s0, turn_index);
+                assert_ne!(s0, s1);
+                let inverted_turn_index = puzzle.inverted_turn_index(turn_index);
+                let s2 = puzzle.get_derived_state_turn_index(&s1, inverted_turn_index);
+                assert_eq!(s2, s0);
+            }
+        }
     }
 }
