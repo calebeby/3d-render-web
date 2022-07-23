@@ -91,30 +91,32 @@ impl Iterator for MetaMoveSolver {
             )
             .collect();
 
-        let mut best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
-        // if best_metamove.turns.is_empty() {
-        //     console::log_1(&"special metamove".into());
-        //     best_metamove = find_best_metamove(
-        //         &self.puzzle,
-        //         &self.state,
-        //         &self
-        //             .metamoves
-        //             .iter()
-        //             .take(5)
-        //             .cloned()
-        //             // .chain(
-        //             //     self.puzzle
-        //             //         .turns
-        //             //         .iter()
-        //             //         .enumerate()
-        //             //         .map(|(turn_index, turn)| {
-        //             //             MetaMove::new(&self.puzzle, vec![turn_index], turn.face_map.clone())
-        //             //         }),
-        //             // )
-        //             .collect::<Vec<_>>(),
-        //         self.depth + 7,
-        //     );
-        // }
+        let mut best_metamove =
+            find_best_metamove(&self.puzzle, &self.state, &options, self.depth, false);
+        if best_metamove.turns.is_empty() {
+            console::log_1(&"special metamove".into());
+            best_metamove = find_best_metamove(
+                &self.puzzle,
+                &self.state,
+                &self
+                    .metamoves
+                    .iter()
+                    .take(1)
+                    .cloned()
+                    .chain(
+                        self.puzzle
+                            .turns
+                            .iter()
+                            .enumerate()
+                            .map(|(turn_index, turn)| {
+                                MetaMove::new(&self.puzzle, vec![turn_index], turn.face_map.clone())
+                            }),
+                    )
+                    .collect::<Vec<_>>(),
+                self.depth + 4,
+                true,
+            );
+        }
 
         if best_metamove.turns.is_empty() {
             console::log_1(&"I give up :(".into());
@@ -141,6 +143,7 @@ fn find_best_metamove(
     state: &PuzzleState,
     metamoves: &[MetaMove],
     depth: usize,
+    stuck: bool,
 ) -> MetaMove {
     let mut best_metamove = MetaMove::empty(puzzle);
     let mut best_score = puzzle.get_num_solved_pieces(state);
@@ -153,27 +156,39 @@ fn find_best_metamove(
             previous_metamove.apply(puzzle, new_metamove)
         },
         &mut |mm| {
-            // // if turns is ABCD, num_sandwiched_turns will be:
-            // // 0: means testing ABCD
-            // // 1: means testing ABCDA'
-            // // 2: means testing ABCDB'A'
-            // // 3: means testing ABCDC'B'A'
-            // for num_sandwiched_turns in 0..=mm.turns.len() - 1 {
-            //     let mm_sandwiched = mm.apply(
-            //         puzzle,
-            //         &mm.slice(puzzle, 0..num_sandwiched_turns).invert(puzzle),
-            //     );
-            let mm_sandwiched = mm;
-            let next_state = puzzle.get_derived_state(state, &mm_sandwiched.face_map);
-            let next_state_score = puzzle.get_num_solved_pieces(&next_state);
-            if next_state_score > best_score {
-                best_metamove = mm_sandwiched.clone();
-                best_score = next_state_score;
+            if stuck {
+                // // if turns is ABCD, num_sandwiched_turns will be:
+                // // 0: means testing ABCD
+                // // 1: means testing ABCDA'
+                // // 2: means testing ABCDB'A'
+                // // 3: means testing ABCDC'B'A'
+                for num_sandwiched_turns in 0..=mm.turns.len() - 1 {
+                    let mm_sandwiched = mm.apply(
+                        puzzle,
+                        &mm.slice(puzzle, 0..num_sandwiched_turns).invert(puzzle),
+                    );
+                    let next_state = puzzle.get_derived_state(state, &mm_sandwiched.face_map);
+                    let next_state_score = puzzle.get_num_solved_pieces(&next_state);
+                    if next_state_score > best_score {
+                        best_metamove = mm_sandwiched;
+                        best_score = next_state_score;
+                        return TraverseResult::Break;
+                    }
+                    if next_state_score == puzzle.get_num_pieces() {
+                        return TraverseResult::Break;
+                    }
+                }
+            } else {
+                let next_state = puzzle.get_derived_state(state, &mm.face_map);
+                let next_state_score = puzzle.get_num_solved_pieces(&next_state);
+                if next_state_score > best_score {
+                    best_metamove = mm.clone();
+                    best_score = next_state_score;
+                }
+                if next_state_score == puzzle.get_num_pieces() {
+                    return TraverseResult::Break;
+                }
             }
-            if next_state_score == puzzle.get_num_pieces() {
-                return TraverseResult::Break;
-            }
-            // }
             TraverseResult::Continue
         },
     );
