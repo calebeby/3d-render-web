@@ -1,5 +1,5 @@
 use crate::traverse_combinations::{traverse_combinations, TraverseResult};
-use crate::twisty_puzzle::Turn;
+use crate::twisty_puzzle::{Symmetry, Turn};
 use crate::{bijection::Bijection, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
 
@@ -54,6 +54,18 @@ impl MetaMove {
                 .collect(),
             self.face_map.apply(&other.face_map),
         )
+    }
+    #[inline]
+    pub fn apply_symmetry(&self, symmetry: &Symmetry) -> Self {
+        MetaMove {
+            turns: self
+                .turns
+                .iter()
+                .map(|turn_index| symmetry.turn_map.0[*turn_index])
+                .collect(),
+            face_map: self.face_map.apply(&symmetry.face_map),
+            num_affected_pieces: self.num_affected_pieces,
+        }
     }
     #[inline]
     pub fn invert(&self, puzzle: &TwistyPuzzle) -> Self {
@@ -164,6 +176,19 @@ mod tests {
             mm2.invert(&puzzle),
             MetaMove::new_infer_face_map(&puzzle, vec![6, 4, 2, 0])
         );
+    }
+
+    #[test]
+    fn test_apply_symmetry() {
+        let puzzle = puzzles::rubiks_cube_3x3();
+        let mm1 = MetaMove::new_infer_face_map(&puzzle, vec![0, 2, 4]);
+        for symmetry in &puzzle.symmetries {
+            let mm2 = mm1.apply_symmetry(symmetry.1);
+            assert_eq!(
+                &mm2,
+                &MetaMove::new_infer_face_map(&puzzle, mm2.turns.clone())
+            );
+        }
     }
 
     #[test]

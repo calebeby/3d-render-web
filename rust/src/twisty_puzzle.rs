@@ -71,12 +71,12 @@ pub struct TwistyPuzzle {
     // Each piece is a vector of its face indexes
     pieces: Vec<Vec<usize>>,
     // Map from face map to symmetry objects
-    symmetries: HashMap<Bijection, Symmetry>,
+    pub symmetries: HashMap<Bijection, Symmetry>,
 }
 
 pub struct Symmetry {
-    face_map: Bijection,
-    turn_map: Bijection,
+    pub face_map: Bijection,
+    pub turn_map: Bijection,
 }
 
 impl TwistyPuzzle {

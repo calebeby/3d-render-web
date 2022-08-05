@@ -22,10 +22,16 @@ impl ScrambleSolver for MetaMoveSolver {
     type Opts = ();
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
-        let metamoves = discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 12, 4);
-        let plugin: Vec<_> = metamoves.into_iter().take(2).collect();
-        let metamoves = combine_metamoves(&puzzle, &plugin, 4);
-        let metamoves: Vec<MetaMove> = metamoves.into_iter().take(4).collect();
+        console::time_with_label("discover_metamoves");
+        let metamoves = discover_metamoves(&puzzle, |mm| mm.num_affected_pieces <= 5, 6);
+        console::time_end_with_label("discover_metamoves");
+        console::log_1(&metamoves.len().into());
+        // console::time_with_label("combine_metamoves");
+        // let metamoves = combine_metamoves(&puzzle, &metamoves, 2);
+        // console::time_end_with_label("combine_metamoves");
+        console::log_1(&metamoves.len().into());
+        // let metamoves: Vec<MetaMove> = metamoves.into_iter().take(4).collect();
+        console::log_1(&"solve".into());
 
         if metamoves.is_empty() {
             throw_str("no metamoves");
@@ -44,7 +50,7 @@ impl ScrambleSolver for MetaMoveSolver {
         Self {
             metamoves,
             puzzle,
-            depth: 3,
+            depth: 2,
             state: initial_state,
             buffered_turns: VecDeque::new(),
         }
@@ -67,25 +73,27 @@ impl Iterator for MetaMoveSolver {
             return Some(next_turn);
         }
 
-        let options: Vec<MetaMove> = self
-            .metamoves
-            .iter()
-            .cloned()
-            .chain(
-                self.puzzle
-                    .turns
-                    .iter()
-                    .enumerate()
-                    .map(|(turn_index, turn)| {
-                        MetaMove::new(&self.puzzle, vec![turn_index], turn.face_map.clone())
-                    }),
-            )
-            .collect();
+        let options = self.metamoves.clone();
 
-        let mut best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
-        if best_metamove.turns.is_empty() {
-            best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
-        }
+        // let options: Vec<MetaMove> = self
+        //     .metamoves
+        //     .iter()
+        //     .cloned()
+        //     .chain(
+        //         self.puzzle
+        //             .turns
+        //             .iter()
+        //             .enumerate()
+        //             .map(|(turn_index, turn)| {
+        //                 MetaMove::new(&self.puzzle, vec![turn_index], turn.face_map.clone())
+        //             }),
+        //     )
+        //     .collect();
+
+        let best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
+        // if best_metamove.turns.is_empty() {
+        //     best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
+        // }
 
         console::log_1(&format!("applying metamoves {} turns", best_metamove.turns.len()).into());
         let &first_turn = best_metamove.turns.get(0)?;
