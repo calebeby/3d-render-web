@@ -579,6 +579,8 @@ mod tests {
 
     use crate::puzzles;
 
+    use super::TwistyPuzzle;
+
     #[test]
     fn test_inverted_turn_index() {
         for puzzle in [
@@ -599,54 +601,51 @@ mod tests {
         }
     }
 
+    fn print_symmetric_move_sequences(puzzle: &TwistyPuzzle, orig_seq: &[&str]) -> String {
+        let orig_seq_turn_indices: Vec<usize> = orig_seq
+            .iter()
+            .map(|turn_name| {
+                puzzle
+                    .turn_names
+                    .iter()
+                    .position(|t| t == turn_name)
+                    .unwrap()
+            })
+            .collect();
+
+        let mut equivalent_seqs: Vec<_> = puzzle
+            .symmetries
+            .values()
+            .map(|symmetry| {
+                orig_seq_turn_indices
+                    .iter()
+                    .map(|original_turn_index| {
+                        let new_turn_index = symmetry.turn_map.0[*original_turn_index];
+                        puzzle.turn_names[new_turn_index].clone()
+                    })
+                    .enumerate()
+                    .fold(String::new(), |out, (i, chunk)| {
+                        out + (if i == 0 { "" } else { " " }) + &chunk
+                    })
+            })
+            .collect();
+
+        equivalent_seqs.sort();
+
+        equivalent_seqs
+            .iter()
+            .enumerate()
+            .fold(String::new(), |out, (i, chunk)| {
+                out + if i == 0 { "" } else { "\n" } + chunk
+            })
+    }
+
     #[test]
     fn test_symmetric_moves_3x3() {
         let puzzle = puzzles::rubiks_cube_3x3();
         assert_eq!(puzzle.symmetries.len(), 24);
-        let turn_sequences = [vec!["F", "R", "U"], vec!["F", "F'"], vec!["F", "R'", "F'"]];
 
-        let output = turn_sequences
-            .iter()
-            .fold(String::new(), |output, orig_seq| {
-                let orig_seq_turn_indices: Vec<usize> = orig_seq
-                    .iter()
-                    .map(|turn_name| {
-                        puzzle
-                            .turn_names
-                            .iter()
-                            .position(|t| t == turn_name)
-                            .unwrap()
-                    })
-                    .collect();
-                let mut equivalent_seqs: Vec<_> = puzzle
-                    .symmetries
-                    .values()
-                    .map(|symmetry| {
-                        orig_seq_turn_indices
-                            .iter()
-                            .map(|original_turn_index| {
-                                let new_turn_index = symmetry.turn_map.0[*original_turn_index];
-                                puzzle.turn_names[new_turn_index].clone()
-                            })
-                            .enumerate()
-                            .fold(String::new(), |out, (i, chunk)| {
-                                out + (if i == 0 { "" } else { " " }) + &chunk
-                            })
-                    })
-                    .collect();
-
-                equivalent_seqs.sort();
-
-                let equivalent_seqs = equivalent_seqs
-                    .iter()
-                    .fold(String::new(), |out, chunk| out + "\n" + chunk);
-
-                output + &format!("\nOriginal: {:?}\nSymmetric:{}", orig_seq, equivalent_seqs)
-            });
-
-        assert_snapshot!(output.trim(), @r###"
-        Original: ["F", "R", "U"]
-        Symmetric:
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "R", "U"]), @r###"
         B D L
         B L U
         B R D
@@ -671,8 +670,8 @@ mod tests {
         U F R
         U L F
         U R B
-        Original: ["F", "F'"]
-        Symmetric:
+        "###);
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "F'"]), @r###"
         B B'
         B B'
         B B'
@@ -697,8 +696,8 @@ mod tests {
         U U'
         U U'
         U U'
-        Original: ["F", "R'", "F'"]
-        Symmetric:
+        "###);
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "R'", "F'"]), @r###"
         B D' B'
         B L' B'
         B R' B'
@@ -723,136 +722,13 @@ mod tests {
         U F' U'
         U L' U'
         U R' U'
-        "###)
+        "###);
     }
 
-    #[test]
     fn test_symmetric_moves_2x2() {
         // 2x2 has much fewer symmetries than a 3x3 even though they are both cubes
         // This is because 2x2 only has half as many turns (since opposite turns are equivalent)
         // So many of the symmetries on the 3x3 involve nonexistent turns on a 2x2
         let puzzle = puzzles::rubiks_cube_2x2();
-        assert_eq!(puzzle.symmetries.len(), 24);
-        let turn_sequences = [vec!["F", "R", "U"], vec!["F", "F'"], vec!["F", "R'", "F'"]];
-
-        let output = turn_sequences
-            .iter()
-            .fold(String::new(), |output, orig_seq| {
-                let orig_seq_turn_indices: Vec<usize> = orig_seq
-                    .iter()
-                    .map(|turn_name| {
-                        puzzle
-                            .turn_names
-                            .iter()
-                            .position(|t| t == turn_name)
-                            .unwrap()
-                    })
-                    .collect();
-                let mut equivalent_seqs: Vec<_> = puzzle
-                    .symmetries
-                    .values()
-                    .map(|symmetry| {
-                        orig_seq_turn_indices
-                            .iter()
-                            .map(|original_turn_index| {
-                                let new_turn_index = symmetry.turn_map.0[*original_turn_index];
-                                puzzle.turn_names[new_turn_index].clone()
-                            })
-                            .enumerate()
-                            .fold(String::new(), |out, (i, chunk)| {
-                                out + (if i == 0 { "" } else { " " }) + &chunk
-                            })
-                    })
-                    .collect();
-
-                equivalent_seqs.sort();
-
-                let equivalent_seqs = equivalent_seqs
-                    .iter()
-                    .fold(String::new(), |out, chunk| out + "\n" + chunk);
-
-                output + &format!("\nOriginal: {:?}\nSymmetric:{}", orig_seq, equivalent_seqs)
-            });
-
-        assert_snapshot!(output.trim(), @r###"
-        Original: ["F", "R", "U"]
-        Symmetric:
-        B D L
-        B L U
-        B R D
-        B U R
-        D B R
-        D F L
-        D L B
-        D R F
-        F D R
-        F L D
-        F R U
-        F U L
-        L B D
-        L D F
-        L F U
-        L U B
-        R B U
-        R D B
-        R F D
-        R U F
-        U B L
-        U F R
-        U L F
-        U R B
-        Original: ["F", "F'"]
-        Symmetric:
-        B B'
-        B B'
-        B B'
-        B B'
-        D D'
-        D D'
-        D D'
-        D D'
-        F F'
-        F F'
-        F F'
-        F F'
-        L L'
-        L L'
-        L L'
-        L L'
-        R R'
-        R R'
-        R R'
-        R R'
-        U U'
-        U U'
-        U U'
-        U U'
-        Original: ["F", "R'", "F'"]
-        Symmetric:
-        B D' B'
-        B L' B'
-        B R' B'
-        B U' B'
-        D B' D'
-        D F' D'
-        D L' D'
-        D R' D'
-        F D' F'
-        F L' F'
-        F R' F'
-        F U' F'
-        L B' L'
-        L D' L'
-        L F' L'
-        L U' L'
-        R B' R'
-        R D' R'
-        R F' R'
-        R U' R'
-        U B' U'
-        U F' U'
-        U L' U'
-        U R' U'
-        "###)
     }
 }
