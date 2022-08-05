@@ -77,15 +77,13 @@ impl Polyhedron {
         let mut vertices = vec![];
 
         let z_axis = Vector3D::new(0.0, 0.0, 1.0);
+        let start_point = Vector3D::new(vertex_to_face_center, 0.0, inradius);
+
         // Base polygon
         for i in 0..p {
             let rotation_amount = angle_between_vertices * i as f64;
             let rotation = Rotation3D::new(&z_axis, rotation_amount);
-            let vertex = rotation.rotate_point_about_origin(&Vector3D::new(
-                vertex_to_face_center,
-                0.0,
-                inradius,
-            ));
+            let vertex = rotation.rotate_point_about_origin(&start_point);
             bottom_vertices.push(vertex);
         }
 
