@@ -362,21 +362,21 @@ impl TwistyPuzzle {
 
         // Map from face map to symmetry objects
         let symmetries: HashMap<Bijection, Symmetry> = symmetry_face_maps
-            .map(|face_map| {
+            .filter_map(|face_map| {
                 let turn_map = Bijection(
                     turns
                         .iter()
-                        .enumerate()
-                        .map(|(i, turn)| {
+                        .map(|turn| -> Option<_> {
                             let original_face_map = &turn.face_map;
                             let symmetry_face_map =
                                 face_map.apply(original_face_map).apply(&face_map.invert());
-                            let turn_index = turns_by_face_map.get(&symmetry_face_map).unwrap();
-                            *turn_index
+                            // if no turn_index is found, the symmetry is not valid
+                            let turn_index = turns_by_face_map.get(&symmetry_face_map)?;
+                            Some(*turn_index)
                         })
-                        .collect(),
+                        .collect::<Option<_>>()?,
                 );
-                (face_map.clone(), Symmetry { face_map, turn_map })
+                Some((face_map.clone(), Symmetry { face_map, turn_map }))
             })
             .collect();
 
@@ -636,7 +636,7 @@ mod tests {
             .iter()
             .enumerate()
             .fold(String::new(), |out, (i, chunk)| {
-                out + if i == 0 { "" } else { "\n" } + chunk
+                out + (if i == 0 { "" } else { "\n" }) + chunk
             })
     }
 
@@ -725,10 +725,36 @@ mod tests {
         "###);
     }
 
+    #[test]
     fn test_symmetric_moves_2x2() {
         // 2x2 has much fewer symmetries than a 3x3 even though they are both cubes
         // This is because 2x2 only has half as many turns (since opposite turns are equivalent)
         // So many of the symmetries on the 3x3 involve nonexistent turns on a 2x2
         let puzzle = puzzles::rubiks_cube_2x2();
+        assert_eq!(puzzle.symmetries.len(), 3); // TODO: there should be more than this
+
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "R", "U"]), @r###"
+        F R U
+        R U F
+        U F R
+        "###);
+    }
+
+    #[test]
+    fn test_symmetric_moves_megaminx() {
+        let puzzle = puzzles::megaminx();
+        assert_eq!(puzzle.symmetries.len(), 60);
+    }
+
+    #[test]
+    fn test_symmetric_moves_pentultimate() {
+        let puzzle = puzzles::pentultimate();
+        assert_eq!(puzzle.symmetries.len(), 5); // TODO: there should be more than this
+    }
+
+    #[test]
+    fn test_symmetric_moves_master_pentultimate() {
+        let puzzle = puzzles::master_pentultimate();
+        assert_eq!(puzzle.symmetries.len(), 60);
     }
 }
