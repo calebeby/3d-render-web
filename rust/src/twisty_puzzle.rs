@@ -70,6 +70,8 @@ pub struct TwistyPuzzle {
     pub turn_names: Vec<String>,
     // Each piece is a vector of its face indexes
     pieces: Vec<Vec<usize>>,
+    // Map from face map to symmetry objects
+    symmetries: HashMap<Bijection, Symmetry>,
 }
 
 pub struct Symmetry {
@@ -267,14 +269,11 @@ impl TwistyPuzzle {
             &(&top_face.vertices[0] - &top_face.plane().point),
             &(&top_face.vertices[1] - &top_face.plane().point),
         );
-        println!("{:#?} {:#?}", &top_face.vertices[0], &top_face.vertices[1]);
-        println!("face rotation angle {}", face_rotation_angle);
 
         #[cfg(test)]
         assert!((TAU / face_rotation_angle) % 1.0 < std::f64::EPSILON);
 
         let num_top_rotations = (TAU / face_rotation_angle).round() as usize;
-        println!("num top rotations {}", num_top_rotations);
         let top_rotation = Rotation3D::new(&top_face.plane().point, face_rotation_angle);
 
         // Face map which rotates the whole puzzle in a symmetric increment around the top face
@@ -291,16 +290,6 @@ impl TwistyPuzzle {
                 })
                 .collect(),
         );
-
-        println!("top face center {:#?}", top_face.plane().point);
-        println!("top face vertices {:#?}", top_face.vertices);
-
-        // map from the face map to the turn index
-        let turns_by_face_map: HashMap<Bijection, usize> = turns
-            .iter()
-            .enumerate()
-            .map(|(turn_index, turn)| (turn.face_map, turn_index))
-            .collect();
 
         let symmetry_face_maps = polyhedron.faces.iter().flat_map(|new_top_face| {
             // Move the new_top_face to the top,
@@ -364,39 +353,48 @@ impl TwistyPuzzle {
         // (we need to find an axis to mirror through)
         // .flat_map(|face_map| [face_map.invert(), face_map])
 
-        let symmetries: Vec<Symmetry> = symmetry_face_maps
-            .filter_map(|symmetry| {
+        // map from the face map to the turn index
+        let turns_by_face_map: HashMap<Bijection, usize> = turns
+            .iter()
+            .enumerate()
+            .map(|(turn_index, turn)| (turn.face_map.clone(), turn_index))
+            .collect();
+
+        // Map from face map to symmetry objects
+        let symmetries: HashMap<Bijection, Symmetry> = symmetry_face_maps
+            .map(|face_map| {
                 let turn_map = Bijection(
                     turns
                         .iter()
-                        .filter_map(|turn| {
+                        .enumerate()
+                        .map(|(i, turn)| {
                             let original_face_map = &turn.face_map;
-                            let symmetry_face_map = symmetry.apply(&original_face_map);
-                            let turn_index = turns_by_face_map.get(&symmetry_face_map);
-                            Some(*turn_index?)
+                            let symmetry_face_map =
+                                face_map.apply(original_face_map).apply(&face_map.invert());
+                            let turn_index = turns_by_face_map.get(&symmetry_face_map).unwrap();
+                            *turn_index
                         })
                         .collect(),
                 );
-                Some(Symmetry {
-                    face_map: symmetry,
-                    turn_map,
-                })
+                (face_map.clone(), Symmetry { face_map, turn_map })
             })
             .collect();
 
         #[cfg(test)]
         {
-            let deduped: HashSet<Bijection> = HashSet::from_iter(symmetry_face_maps.clone());
-            assert_eq!(deduped.len(), symmetry_face_maps.count())
+            let deduped: HashSet<Bijection> =
+                HashSet::from_iter(symmetries.values().map(|s| s.face_map.clone()));
+            assert_eq!(deduped.len(), symmetries.len())
         }
 
-        println!("Non-unique symmetries: {:?}", symmetries.len());
+        println!("Symmetries: {:?}", symmetries.len());
 
         Self {
             faces,
             turns,
             turn_names,
             pieces,
+            symmetries,
         }
     }
 
@@ -577,6 +575,8 @@ impl VertexList {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_snapshot;
+
     use crate::puzzles;
 
     #[test]
@@ -597,5 +597,262 @@ mod tests {
                 assert_eq!(s2, s0);
             }
         }
+    }
+
+    #[test]
+    fn test_symmetric_moves_3x3() {
+        let puzzle = puzzles::rubiks_cube_3x3();
+        assert_eq!(puzzle.symmetries.len(), 24);
+        let turn_sequences = [vec!["F", "R", "U"], vec!["F", "F'"], vec!["F", "R'", "F'"]];
+
+        let output = turn_sequences
+            .iter()
+            .fold(String::new(), |output, orig_seq| {
+                let orig_seq_turn_indices: Vec<usize> = orig_seq
+                    .iter()
+                    .map(|turn_name| {
+                        puzzle
+                            .turn_names
+                            .iter()
+                            .position(|t| t == turn_name)
+                            .unwrap()
+                    })
+                    .collect();
+                let mut equivalent_seqs: Vec<_> = puzzle
+                    .symmetries
+                    .values()
+                    .map(|symmetry| {
+                        orig_seq_turn_indices
+                            .iter()
+                            .map(|original_turn_index| {
+                                let new_turn_index = symmetry.turn_map.0[*original_turn_index];
+                                puzzle.turn_names[new_turn_index].clone()
+                            })
+                            .enumerate()
+                            .fold(String::new(), |out, (i, chunk)| {
+                                out + (if i == 0 { "" } else { " " }) + &chunk
+                            })
+                    })
+                    .collect();
+
+                equivalent_seqs.sort();
+
+                let equivalent_seqs = equivalent_seqs
+                    .iter()
+                    .fold(String::new(), |out, chunk| out + "\n" + chunk);
+
+                output + &format!("\nOriginal: {:?}\nSymmetric:{}", orig_seq, equivalent_seqs)
+            });
+
+        assert_snapshot!(output.trim(), @r###"
+        Original: ["F", "R", "U"]
+        Symmetric:
+        B D L
+        B L U
+        B R D
+        B U R
+        D B R
+        D F L
+        D L B
+        D R F
+        F D R
+        F L D
+        F R U
+        F U L
+        L B D
+        L D F
+        L F U
+        L U B
+        R B U
+        R D B
+        R F D
+        R U F
+        U B L
+        U F R
+        U L F
+        U R B
+        Original: ["F", "F'"]
+        Symmetric:
+        B B'
+        B B'
+        B B'
+        B B'
+        D D'
+        D D'
+        D D'
+        D D'
+        F F'
+        F F'
+        F F'
+        F F'
+        L L'
+        L L'
+        L L'
+        L L'
+        R R'
+        R R'
+        R R'
+        R R'
+        U U'
+        U U'
+        U U'
+        U U'
+        Original: ["F", "R'", "F'"]
+        Symmetric:
+        B D' B'
+        B L' B'
+        B R' B'
+        B U' B'
+        D B' D'
+        D F' D'
+        D L' D'
+        D R' D'
+        F D' F'
+        F L' F'
+        F R' F'
+        F U' F'
+        L B' L'
+        L D' L'
+        L F' L'
+        L U' L'
+        R B' R'
+        R D' R'
+        R F' R'
+        R U' R'
+        U B' U'
+        U F' U'
+        U L' U'
+        U R' U'
+        "###)
+    }
+
+    #[test]
+    fn test_symmetric_moves_2x2() {
+        // 2x2 has much fewer symmetries than a 3x3 even though they are both cubes
+        // This is because 2x2 only has half as many turns (since opposite turns are equivalent)
+        // So many of the symmetries on the 3x3 involve nonexistent turns on a 2x2
+        let puzzle = puzzles::rubiks_cube_2x2();
+        assert_eq!(puzzle.symmetries.len(), 24);
+        let turn_sequences = [vec!["F", "R", "U"], vec!["F", "F'"], vec!["F", "R'", "F'"]];
+
+        let output = turn_sequences
+            .iter()
+            .fold(String::new(), |output, orig_seq| {
+                let orig_seq_turn_indices: Vec<usize> = orig_seq
+                    .iter()
+                    .map(|turn_name| {
+                        puzzle
+                            .turn_names
+                            .iter()
+                            .position(|t| t == turn_name)
+                            .unwrap()
+                    })
+                    .collect();
+                let mut equivalent_seqs: Vec<_> = puzzle
+                    .symmetries
+                    .values()
+                    .map(|symmetry| {
+                        orig_seq_turn_indices
+                            .iter()
+                            .map(|original_turn_index| {
+                                let new_turn_index = symmetry.turn_map.0[*original_turn_index];
+                                puzzle.turn_names[new_turn_index].clone()
+                            })
+                            .enumerate()
+                            .fold(String::new(), |out, (i, chunk)| {
+                                out + (if i == 0 { "" } else { " " }) + &chunk
+                            })
+                    })
+                    .collect();
+
+                equivalent_seqs.sort();
+
+                let equivalent_seqs = equivalent_seqs
+                    .iter()
+                    .fold(String::new(), |out, chunk| out + "\n" + chunk);
+
+                output + &format!("\nOriginal: {:?}\nSymmetric:{}", orig_seq, equivalent_seqs)
+            });
+
+        assert_snapshot!(output.trim(), @r###"
+        Original: ["F", "R", "U"]
+        Symmetric:
+        B D L
+        B L U
+        B R D
+        B U R
+        D B R
+        D F L
+        D L B
+        D R F
+        F D R
+        F L D
+        F R U
+        F U L
+        L B D
+        L D F
+        L F U
+        L U B
+        R B U
+        R D B
+        R F D
+        R U F
+        U B L
+        U F R
+        U L F
+        U R B
+        Original: ["F", "F'"]
+        Symmetric:
+        B B'
+        B B'
+        B B'
+        B B'
+        D D'
+        D D'
+        D D'
+        D D'
+        F F'
+        F F'
+        F F'
+        F F'
+        L L'
+        L L'
+        L L'
+        L L'
+        R R'
+        R R'
+        R R'
+        R R'
+        U U'
+        U U'
+        U U'
+        U U'
+        Original: ["F", "R'", "F'"]
+        Symmetric:
+        B D' B'
+        B L' B'
+        B R' B'
+        B U' B'
+        D B' D'
+        D F' D'
+        D L' D'
+        D R' D'
+        F D' F'
+        F L' F'
+        F R' F'
+        F U' F'
+        L B' L'
+        L D' L'
+        L F' L'
+        L U' L'
+        R B' R'
+        R D' R'
+        R F' R'
+        R U' R'
+        U B' U'
+        U F' U'
+        U L' U'
+        U R' U'
+        "###)
     }
 }
