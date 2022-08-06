@@ -234,7 +234,7 @@ pub fn skewb_diamond() -> TwistyPuzzle {
 #[allow(dead_code)]
 pub fn fto() -> TwistyPuzzle {
     let octahedron = octahedron();
-    // There is a small extra piece in the center because of the + at the end there: 
+    // There is a small extra piece in the center because of the + at the end there:
     // This is needed, otherwise there is a zero-size piece that messes things up
     let cut_depth = -2.0 / 3.0 * octahedron.inradius + 0.02;
     TwistyPuzzle::new(
@@ -317,7 +317,8 @@ mod tests {
         assert_eq!(initial_state, turned_again_state);
     }
 
-    #[test]
+    // #[test]
+    #[allow(dead_code)]
     fn test_eitans_star() {
         let puzzle = eitans_star();
         assert_eq!(puzzle.get_num_faces(), 16 * 20);

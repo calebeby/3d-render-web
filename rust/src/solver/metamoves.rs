@@ -1,7 +1,12 @@
+use web_sys::console;
+
 use crate::traverse_combinations::{traverse_combinations, TraverseResult};
-use crate::twisty_puzzle::Turn;
+use crate::twisty_puzzle::{Symmetry, Turn};
 use crate::{bijection::Bijection, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 /// A metamove is a set of moves that combines to one large "move"
 /// that ends up (hopefully) moving only a small number of pieces.
@@ -56,6 +61,21 @@ impl MetaMove {
         )
     }
     #[inline]
+    pub fn apply_symmetry(&self, symmetry: &Symmetry) -> Self {
+        MetaMove {
+            turns: self
+                .turns
+                .iter()
+                .map(|turn_index| symmetry.turn_map.0[*turn_index])
+                .collect(),
+            face_map: symmetry
+                .face_map
+                .apply(&self.face_map)
+                .apply(&symmetry.face_map.invert()),
+            num_affected_pieces: self.num_affected_pieces,
+        }
+    }
+    #[inline]
     pub fn invert(&self, puzzle: &TwistyPuzzle) -> Self {
         let inverted_turns = self
             .turns
@@ -75,6 +95,14 @@ impl PartialEq for MetaMove {
         self.turns == other.turns
     }
 }
+impl Hash for MetaMove {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // comparing by turns instead of by face_map
+        // because different sequences of turns can have the same effect,
+        // but those should be represented by different (non-equal) MetaMoves
+        self.turns.hash(state)
+    }
+}
 impl Eq for MetaMove {}
 
 impl PartialOrd for MetaMove {
@@ -87,7 +115,7 @@ impl Ord for MetaMove {
         self.num_affected_pieces
             .cmp(&other.num_affected_pieces)
             .then(self.turns.len().cmp(&other.turns.len()))
-            .then(self.turns.cmp(&other.turns).reverse())
+            .then(other.turns.cmp(&self.turns))
     }
 }
 
@@ -99,14 +127,16 @@ pub fn discover_metamoves<Filter>(
 where
     Filter: Fn(&MetaMove) -> bool,
 {
-    let mut best_metamoves: Vec<MetaMove> = vec![];
+    let mut best_metamoves = HashMap::<Bijection, MetaMove>::new();
 
     let turns: Vec<_> = puzzle.turns.iter().enumerate().collect();
 
     traverse_combinations(
         &turns,
-        max_turns,
-        MetaMove::empty(puzzle),
+        max_turns - 1,
+        // We'll start out with a single known turn,
+        // and then copy the metamoves all over the puzzle at the end.
+        MetaMove::new_infer_face_map(puzzle, vec![0]),
         &|previous_metamove: &MetaMove, (turn_index, turn): &(usize, &Turn)| {
             let face_map = previous_metamove.face_map.apply(&turn.face_map);
 
@@ -134,11 +164,28 @@ where
             }
 
             if metamove.num_affected_pieces > 0 && filter(metamove) {
-                best_metamoves.push(metamove.clone());
+                // Since we started out with a fixed single turn,
+                // now we need to expand out all the symmetric versions
+                for symmetry in puzzle.symmetries.values() {
+                    let sym_metamove = metamove.apply_symmetry(symmetry);
+                    let entry = best_metamoves.entry(sym_metamove.face_map.clone());
+                    match entry {
+                        Entry::Occupied(mut entry) => {
+                            if entry.get() > &sym_metamove {
+                                entry.insert(sym_metamove.clone());
+                            }
+                        }
+                        Entry::Vacant(entry) => {
+                            entry.insert(sym_metamove.clone());
+                        }
+                    }
+                }
             }
             TraverseResult::Continue
         },
     );
+
+    let mut best_metamoves: Vec<MetaMove> = best_metamoves.into_values().collect();
 
     best_metamoves.sort();
     best_metamoves
@@ -167,18 +214,23 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_symmetry() {
+        let puzzle = puzzles::rubiks_cube_3x3();
+        let mm1 = MetaMove::new_infer_face_map(&puzzle, vec![0, 2, 4]);
+        for symmetry in &puzzle.symmetries {
+            let mm2 = mm1.apply_symmetry(symmetry.1);
+            assert_eq!(
+                &mm2,
+                &MetaMove::new_infer_face_map(&puzzle, mm2.turns.clone())
+            );
+        }
+    }
+
+    #[test]
     fn test_discover_metamoves_2x2() {
         let puzzle = puzzles::rubiks_cube_2x2();
         let solved_state = puzzle.get_initial_state();
-        // TODO: test filter
-        let all_metamoves_2_moves = discover_metamoves(&puzzle, |_| true, 2);
-
-        assert_eq!(all_metamoves_2_moves.len(), 30);
-
-        assert_debug_snapshot!(all_metamoves_2_moves
-            .iter()
-            .map(|mm| (mm.num_affected_pieces, mm.turns.clone()))
-            .collect::<Vec<_>>());
+        let mut all_metamoves_2_moves = discover_metamoves(&puzzle, |_| true, 2);
 
         for metamove in &all_metamoves_2_moves {
             assert_eq!(
@@ -190,42 +242,89 @@ mod tests {
             );
         }
 
+        assert_eq!(all_metamoves_2_moves.len(), 27);
+
+        all_metamoves_2_moves.sort_by(|mm1, mm2| {
+            mm1.num_affected_pieces
+                .cmp(&mm2.num_affected_pieces)
+                .then(mm1.face_map.0.cmp(&mm2.face_map.0))
+                .then(mm1.turns.cmp(&mm2.turns))
+        });
+
+        assert_debug_snapshot!(all_metamoves_2_moves
+            .iter()
+            .map(|mm| (mm.num_affected_pieces, mm.turns.clone()))
+            .collect::<Vec<_>>());
+
         let all_metamoves_4_moves = discover_metamoves(&puzzle, |_| true, 4);
-        assert_eq!(all_metamoves_4_moves.len(), 924);
+        assert_eq!(all_metamoves_4_moves.len(), 687);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 4);
     }
 
     #[test]
     fn test_discover_metamoves_pyraminx() {
         let puzzle = puzzles::pyraminx();
+        let solved_state = puzzle.get_initial_state();
         let all_metamoves_4_moves = discover_metamoves(&puzzle, |_| true, 4);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 3);
-        assert_eq!(all_metamoves_4_moves[0].turns, [7, 5, 6, 4]);
+        for mm in &all_metamoves_4_moves {
+            if mm.num_affected_pieces == 3 {
+                // It should be in the form [A, B, A', B']
+                assert_eq!(mm.turns.len(), 4);
+                assert_eq!(puzzle.inverted_turn_index(mm.turns[0]), mm.turns[2]);
+                assert_eq!(puzzle.inverted_turn_index(mm.turns[1]), mm.turns[3]);
+            }
+        }
 
-        assert_eq!(all_metamoves_4_moves.len(), 3184);
         assert_eq!(
             all_metamoves_4_moves
                 .iter()
-                .filter(|mm| mm.num_affected_pieces == 3)
+                .filter(|mm| mm.num_affected_pieces <= 3)
                 .count(),
             48 // All 4-move (or less, but those don't exist) 3-cycles on the pyraminx
         );
+        assert_eq!(all_metamoves_4_moves.len(), 2072);
+
+        for metamove in &all_metamoves_4_moves {
+            assert_eq!(
+                puzzle.get_derived_state(&solved_state, &metamove.face_map),
+                puzzle.get_derived_state_from_turn_sequence(
+                    &solved_state,
+                    &mut metamove.turns.iter().cloned()
+                )
+            );
+        }
     }
 
     #[test]
     fn test_discover_metamoves_3x3() {
         let puzzle = puzzles::rubiks_cube_3x3();
+        let solved_state = puzzle.get_initial_state();
         let all_metamoves_3_moves = discover_metamoves(&puzzle, |_| true, 3);
         assert_eq!(all_metamoves_3_moves[0].num_affected_pieces, 8);
-        assert_eq!(all_metamoves_3_moves[0].turns, [11, 11]);
-
-        assert_eq!(all_metamoves_3_moves.len(), 1584);
+        assert_eq!(all_metamoves_3_moves[0].turns.len(), 2);
+        // Two turns to affect 8 pieces, it is a double-turn on a single face
+        assert_eq!(
+            all_metamoves_3_moves[0].turns[0],
+            all_metamoves_3_moves[0].turns[1]
+        );
         assert_eq!(
             all_metamoves_3_moves
                 .iter()
                 .filter(|mm| mm.num_affected_pieces == 8)
                 .count(),
-            144
+            114
         );
+        assert_eq!(all_metamoves_3_moves.len(), 1194);
+
+        for metamove in &all_metamoves_3_moves {
+            assert_eq!(
+                puzzle.get_derived_state(&solved_state, &metamove.face_map),
+                puzzle.get_derived_state_from_turn_sequence(
+                    &solved_state,
+                    &mut metamove.turns.iter().cloned()
+                )
+            );
+        }
     }
 }

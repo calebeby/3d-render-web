@@ -2,11 +2,16 @@ use crate::quaternion::Quaternion;
 use crate::vector3d::Vector3D;
 
 pub struct Rotation3D {
-    q: Quaternion,
+    // It is Option because if the rotation_amount is zero, the quaternion can't be applied
+    q: Option<Quaternion>,
 }
 
 impl Rotation3D {
     pub fn new(axis: &Vector3D, rotation_amount: f64) -> Self {
+        if rotation_amount == 0.0 {
+            return Self { q: None };
+        }
+
         let rotation_q_imaginary = &axis.to_unit_vector() * (rotation_amount / 2.0).sin();
         let q = Quaternion::new(
             (rotation_amount / 2.0).cos(),
@@ -15,12 +20,16 @@ impl Rotation3D {
             rotation_q_imaginary.z,
         );
 
-        Self { q }
+        Self { q: Some(q) }
     }
 
     pub fn rotate_point_about_origin(&self, point: &Vector3D) -> Vector3D {
-        let result_quaternion = &(&self.q * &Quaternion::from_vector(point)) * &self.q.conjugate();
-        result_quaternion.to_vector()
+        if let Some(q) = &self.q {
+            let result_quaternion = &(q * &Quaternion::from_vector(point)) * &q.conjugate();
+            result_quaternion.to_vector()
+        } else {
+            *point
+        }
     }
 
     pub fn rotate_point_about_positioned_axis(
@@ -38,8 +47,13 @@ impl Rotation3D {
     /// Combine rotation axes into a single rotation axis,
     /// as if rotation_a was applied and then rotation_b
     pub fn combine_rotations(rotation_a: &Rotation3D, rotation_b: &Rotation3D) -> Rotation3D {
-        Self {
-            q: &rotation_b.q * &rotation_a.q,
+        match (rotation_a, rotation_b) {
+            (Rotation3D { q: Some(q_a) }, Rotation3D { q: Some(q_b) }) => {
+                Self { q: Some(q_b * q_a) }
+            }
+            (Rotation3D { q: None }, Rotation3D { q: Some(q) }) => Self { q: Some(q.clone()) },
+            (Rotation3D { q: Some(q) }, Rotation3D { q: None }) => Self { q: Some(q.clone()) },
+            (Rotation3D { q: None }, Rotation3D { q: None }) => Self { q: None },
         }
     }
 }

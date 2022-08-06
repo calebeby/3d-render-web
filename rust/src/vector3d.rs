@@ -47,6 +47,9 @@ impl Vector3D {
     pub fn to_unit_vector(&self) -> Vector3D {
         self / self.magnitude()
     }
+    pub fn angle_between(a: &Vector3D, b: &Vector3D) -> f64 {
+        (a.dot(b) / (a.magnitude() * b.magnitude())).acos()
+    }
 
     pub fn approx_equals(&self, other: &Vector3D) -> bool {
         approx_equals(self.x, other.x)

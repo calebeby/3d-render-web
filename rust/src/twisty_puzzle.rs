@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+#[cfg(test)]
+use std::collections::HashSet;
+use std::f64::consts::TAU;
 
 use crate::bijection::Bijection;
 use crate::point_in_space_map::PointInSpaceMap;
@@ -67,6 +70,13 @@ pub struct TwistyPuzzle {
     pub turn_names: Vec<String>,
     // Each piece is a vector of its face indexes
     pieces: Vec<Vec<usize>>,
+    // Map from face map to symmetry objects
+    pub symmetries: HashMap<Bijection, Symmetry>,
+}
+
+pub struct Symmetry {
+    pub face_map: Bijection,
+    pub turn_map: Bijection,
 }
 
 impl TwistyPuzzle {
@@ -215,7 +225,7 @@ impl TwistyPuzzle {
             original_face_centers_map.insert(*face, i);
         }
 
-        // try out each of the turns to determine the symmetries between pieces
+        // try out each of the turns to determine the correspondence between pieces
         // and which faces map to which faces after each turn
         let (turn_names, turns): (Vec<_>, Vec<_>) = physical_turns
             .into_iter()
@@ -236,7 +246,7 @@ impl TwistyPuzzle {
                                 );
                                 // Find the index in the old faces array
                                 // which corresponds to the new position
-                                *original_face_centers_map.get(&new_location).unwrap_or(&i)
+                                *original_face_centers_map.get(&new_location).unwrap()
                             } else {
                                 // this turn does not affect this face; map to itself
                                 i
@@ -253,11 +263,159 @@ impl TwistyPuzzle {
             })
             .unzip();
 
+        let top_face = &polyhedron.faces[0];
+
+        let face_rotation_angle = Vector3D::angle_between(
+            &(&top_face.vertices[0] - &top_face.plane().point),
+            &(&top_face.vertices[1] - &top_face.plane().point),
+        );
+
+        #[cfg(test)]
+        assert!((TAU / face_rotation_angle) % 1.0 < std::f64::EPSILON);
+
+        let num_top_rotations = (TAU / face_rotation_angle).round() as usize;
+        let top_rotation = Rotation3D::new(&top_face.plane().point, face_rotation_angle);
+
+        // Face map which rotates the whole puzzle in a symmetric increment around the top face
+        let top_rotation_face_map = Bijection(
+            faces
+                .iter()
+                .enumerate()
+                .map(|(i, _face)| {
+                    let original_location = &face_centers[i];
+                    let new_location = top_rotation.rotate_point_about_origin(original_location);
+                    // Find the index in the old faces array
+                    // which corresponds to the new position
+                    *original_face_centers_map.get(&new_location).unwrap()
+                })
+                .collect(),
+        );
+
+        // Face map which mirrors all the faces across a center plane
+        let mirror_face_map = Bijection(
+            faces
+                .iter()
+                .enumerate()
+                .map(|(i, _face)| {
+                    let original_location = &face_centers[i];
+                    let new_location = Vector3D::new(
+                        original_location.x,
+                        -original_location.y,
+                        original_location.z,
+                    );
+                    // Find the index in the old faces array
+                    // which corresponds to the new position
+                    *original_face_centers_map.get(&new_location).unwrap()
+                })
+                .collect(),
+        );
+
+        let symmetry_face_maps = polyhedron
+            .faces
+            .iter()
+            .flat_map(|new_top_face| {
+                // Move the new_top_face to the top,
+                // and then rotate it to align it with the original top face position
+                let rotation_to_top_angle =
+                    Vector3D::angle_between(&new_top_face.plane().point, &top_face.plane().point);
+                let rotation_to_top_axis =
+                    if (rotation_to_top_angle - std::f64::consts::PI).abs() > std::f64::EPSILON {
+                        new_top_face.plane().point.cross(&top_face.plane().point)
+                    } else {
+                        // Rotation of 180deg (original bottom face becomes top)
+                        // the cross product won't yield a useful result
+                        // (because of floating point error)
+                        // so we come up with a different axis for rotation
+                        Vector3D::new(0.0, 1.0, 0.0).cross(&top_face.plane().point)
+                    };
+                let rotation_to_top = Rotation3D::new(&rotation_to_top_axis, rotation_to_top_angle);
+                // Apply the rotation to one vertex of new_top_face and then align the vertex with
+                // one of the original vertex positions of the old top face
+                let new_vertex_position_unaligned =
+                    rotation_to_top.rotate_point_about_origin(&new_top_face.vertices[0]);
+                let top_alignment_rotation_axis = &top_face.plane().point;
+                let top_alignment_rotation_angle = Vector3D::angle_between(
+                    &(&new_vertex_position_unaligned - &top_face.plane().point),
+                    &(&top_face.vertices[0] - &top_face.plane().point),
+                );
+                let top_alignment_rotation =
+                    Rotation3D::new(top_alignment_rotation_axis, top_alignment_rotation_angle);
+                let combined_rotation =
+                    Rotation3D::combine_rotations(&rotation_to_top, &top_alignment_rotation);
+
+                #[cfg(test)]
+                assert!(combined_rotation
+                    .rotate_point_about_origin(&new_top_face.plane().point)
+                    .approx_equals(&top_face.plane().point));
+
+                // Face map that moves the selected face to the top face
+                let face_map_to_top = Bijection(
+                    faces
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _face)| {
+                            let original_location = &face_centers[i];
+                            let new_location =
+                                combined_rotation.rotate_point_about_origin(original_location);
+                            // Find the index in the old faces array
+                            // which corresponds to the new position
+                            *original_face_centers_map.get(&new_location).unwrap()
+                        })
+                        .collect(),
+                )
+                .invert();
+
+                (1..num_top_rotations).fold(vec![face_map_to_top], |mut prev_maps, _| {
+                    prev_maps.push(prev_maps.last().unwrap().apply(&top_rotation_face_map));
+                    prev_maps
+                })
+            })
+            .flat_map(|face_map| [mirror_face_map.apply(&face_map), face_map]);
+        // yes, this is wrong (it generates only duplicates)
+        // But, we _can_ make mirrored versions of everything
+        // (we need to find an axis to mirror through)
+        // .flat_map(|face_map| [face_map.invert(), face_map])
+
+        // map from the face map to the turn index
+        let turns_by_face_map: HashMap<Bijection, usize> = turns
+            .iter()
+            .enumerate()
+            .map(|(turn_index, turn)| (turn.face_map.clone(), turn_index))
+            .collect();
+
+        // Map from face map to symmetry objects
+        let symmetries: HashMap<Bijection, Symmetry> = symmetry_face_maps
+            .filter_map(|face_map| {
+                let turn_map = Bijection(
+                    turns
+                        .iter()
+                        .map(|turn| -> Option<_> {
+                            let original_face_map = &turn.face_map;
+                            let symmetry_face_map =
+                                face_map.apply(original_face_map).apply(&face_map.invert());
+                            // if no turn_index is found, the symmetry is not valid
+                            let turn_index = turns_by_face_map.get(&symmetry_face_map)?;
+                            Some(*turn_index)
+                        })
+                        .collect::<Option<_>>()?,
+                );
+                Some((face_map.clone(), Symmetry { face_map, turn_map }))
+            })
+            .collect();
+
+        #[cfg(test)]
+        {
+            let deduped: HashSet<Bijection> =
+                HashSet::from_iter(symmetries.values().map(|s| s.face_map.clone()));
+            assert_eq!(deduped.len(), symmetries.len())
+        }
+
         Self {
             faces,
             turns,
             turn_names,
             pieces,
+            symmetries,
         }
     }
 
@@ -438,7 +596,11 @@ impl VertexList {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_snapshot;
+
     use crate::puzzles;
+
+    use super::TwistyPuzzle;
 
     #[test]
     fn test_inverted_turn_index() {
@@ -458,5 +620,234 @@ mod tests {
                 assert_eq!(s2, s0);
             }
         }
+    }
+
+    fn print_symmetric_move_sequences(puzzle: &TwistyPuzzle, orig_seq: &[&str]) -> String {
+        let orig_seq_turn_indices: Vec<usize> = orig_seq
+            .iter()
+            .map(|turn_name| {
+                puzzle
+                    .turn_names
+                    .iter()
+                    .position(|t| t == turn_name)
+                    .unwrap()
+            })
+            .collect();
+
+        let mut equivalent_seqs: Vec<_> = puzzle
+            .symmetries
+            .values()
+            .map(|symmetry| {
+                orig_seq_turn_indices
+                    .iter()
+                    .map(|original_turn_index| {
+                        let new_turn_index = symmetry.turn_map.0[*original_turn_index];
+                        puzzle.turn_names[new_turn_index].clone()
+                    })
+                    .enumerate()
+                    .fold(String::new(), |out, (i, chunk)| {
+                        out + (if i == 0 { "" } else { " " }) + &chunk
+                    })
+            })
+            .collect();
+
+        equivalent_seqs.sort();
+
+        equivalent_seqs
+            .iter()
+            .fold(String::new(), |out, chunk| out + chunk + "\n")
+    }
+
+    #[test]
+    fn test_symmetric_moves_3x3() {
+        let puzzle = puzzles::rubiks_cube_3x3();
+        assert_eq!(puzzle.symmetries.len(), 48);
+
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "R", "U"]), @r###"
+        B D L
+        B L U
+        B R D
+        B U R
+        B' D' R'
+        B' L' D'
+        B' R' U'
+        B' U' L'
+        D B R
+        D F L
+        D L B
+        D R F
+        D' B' L'
+        D' F' R'
+        D' L' F'
+        D' R' B'
+        F D R
+        F L D
+        F R U
+        F U L
+        F' D' L'
+        F' L' U'
+        F' R' D'
+        F' U' R'
+        L B D
+        L D F
+        L F U
+        L U B
+        L' B' U'
+        L' D' B'
+        L' F' D'
+        L' U' F'
+        R B U
+        R D B
+        R F D
+        R U F
+        R' B' D'
+        R' D' F'
+        R' F' U'
+        R' U' B'
+        U B L
+        U F R
+        U L F
+        U R B
+        U' B' R'
+        U' F' L'
+        U' L' B'
+        U' R' F'
+        "###);
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "F'"]), @r###"
+        B B'
+        B B'
+        B B'
+        B B'
+        B' B
+        B' B
+        B' B
+        B' B
+        D D'
+        D D'
+        D D'
+        D D'
+        D' D
+        D' D
+        D' D
+        D' D
+        F F'
+        F F'
+        F F'
+        F F'
+        F' F
+        F' F
+        F' F
+        F' F
+        L L'
+        L L'
+        L L'
+        L L'
+        L' L
+        L' L
+        L' L
+        L' L
+        R R'
+        R R'
+        R R'
+        R R'
+        R' R
+        R' R
+        R' R
+        R' R
+        U U'
+        U U'
+        U U'
+        U U'
+        U' U
+        U' U
+        U' U
+        U' U
+        "###);
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "R'", "F'"]), @r###"
+        B D' B'
+        B L' B'
+        B R' B'
+        B U' B'
+        B' D B
+        B' L B
+        B' R B
+        B' U B
+        D B' D'
+        D F' D'
+        D L' D'
+        D R' D'
+        D' B D
+        D' F D
+        D' L D
+        D' R D
+        F D' F'
+        F L' F'
+        F R' F'
+        F U' F'
+        F' D F
+        F' L F
+        F' R F
+        F' U F
+        L B' L'
+        L D' L'
+        L F' L'
+        L U' L'
+        L' B L
+        L' D L
+        L' F L
+        L' U L
+        R B' R'
+        R D' R'
+        R F' R'
+        R U' R'
+        R' B R
+        R' D R
+        R' F R
+        R' U R
+        U B' U'
+        U F' U'
+        U L' U'
+        U R' U'
+        U' B U
+        U' F U
+        U' L U
+        U' R U
+        "###);
+    }
+
+    #[test]
+    fn test_symmetric_moves_2x2() {
+        // 2x2 has much fewer symmetries than a 3x3 even though they are both cubes
+        // This is because 2x2 only has half as many turns (since opposite turns are equivalent)
+        // So many of the symmetries on the 3x3 involve nonexistent turns on a 2x2
+        let puzzle = puzzles::rubiks_cube_2x2();
+        assert_eq!(puzzle.symmetries.len(), 6); // TODO: there should be more than this
+
+        assert_snapshot!(print_symmetric_move_sequences(&puzzle, &["F", "R", "U"]), @r###"
+        F R U
+        F' U' R'
+        R U F
+        R' F' U'
+        U F R
+        U' R' F'
+        "###);
+    }
+
+    #[test]
+    fn test_symmetric_moves_megaminx() {
+        let puzzle = puzzles::megaminx();
+        assert_eq!(puzzle.symmetries.len(), 120);
+    }
+
+    #[test]
+    fn test_symmetric_moves_pentultimate() {
+        let puzzle = puzzles::pentultimate();
+        assert_eq!(puzzle.symmetries.len(), 10); // TODO: there should be more than this
+    }
+
+    #[test]
+    fn test_symmetric_moves_master_pentultimate() {
+        let puzzle = puzzles::master_pentultimate();
+        assert_eq!(puzzle.symmetries.len(), 120);
     }
 }

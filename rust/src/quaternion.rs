@@ -1,6 +1,6 @@
 use crate::vector3d::Vector3D;
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct Quaternion {
     real: f64,
     i: f64,
