@@ -262,8 +262,6 @@ mod tests {
         let solved_state = puzzle.get_initial_state();
         let mut all_metamoves_2_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 2);
 
-        println!("{:#?}", all_metamoves_2_moves);
-
         for metamove in &all_metamoves_2_moves {
             assert_eq!(
                 puzzle.get_derived_state(&solved_state, &metamove.face_map),
