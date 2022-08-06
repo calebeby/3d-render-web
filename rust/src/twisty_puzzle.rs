@@ -410,8 +410,6 @@ impl TwistyPuzzle {
             assert_eq!(deduped.len(), symmetries.len())
         }
 
-        println!("Symmetries: {:?}", symmetries.len());
-
         Self {
             faces,
             turns,
