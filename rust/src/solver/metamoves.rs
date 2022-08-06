@@ -102,9 +102,18 @@ impl Debug for MetaMove {
             .iter()
             .map(|turn_index| self.puzzle.turn_names[*turn_index].clone())
             .collect();
+
+        struct TurnSequence(Vec<String>);
+        impl Debug for TurnSequence {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "[{}] ({})", &self.0.join(", "), self.0.len())
+            }
+        }
+
         f.debug_struct("MetaMove")
-            .field("turns", &turns.join(", "))
-            .finish()
+            .field("turns", &TurnSequence(turns))
+            .field("num_affected_pieces", &self.num_affected_pieces)
+            .finish_non_exhaustive()
     }
 }
 
@@ -252,6 +261,8 @@ mod tests {
         let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
         let solved_state = puzzle.get_initial_state();
         let mut all_metamoves_2_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 2);
+
+        println!("{:#?}", all_metamoves_2_moves);
 
         for metamove in &all_metamoves_2_moves {
             assert_eq!(
