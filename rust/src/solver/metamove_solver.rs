@@ -27,9 +27,9 @@ impl ScrambleSolver for MetaMoveSolver {
             (5_000_000f64.ln() / (puzzle.turns.len() as f64).ln()) as usize;
         console::log_1(&max_discover_metamoves_depth.into());
         let turn_num_affected_pieces =
-            MetaMove::new_infer_face_map(&puzzle, vec![0]).num_affected_pieces;
+            MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]).num_affected_pieces;
         let metamoves = discover_metamoves(
-            &puzzle,
+            Rc::clone(&puzzle),
             |mm| mm.num_affected_pieces < turn_num_affected_pieces,
             // |mm| true,
             max_discover_metamoves_depth,
@@ -86,7 +86,8 @@ impl Iterator for MetaMoveSolver {
 
         let options = self.metamoves.clone();
 
-        let best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
+        let best_metamove =
+            find_best_metamove(Rc::clone(&self.puzzle), &self.state, &options, self.depth);
         // let mut best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
         // if best_metamove.turns.is_empty() {
         //     best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
@@ -108,20 +109,20 @@ impl Iterator for MetaMoveSolver {
 }
 
 fn find_best_metamove(
-    puzzle: &TwistyPuzzle,
+    puzzle: Rc<TwistyPuzzle>,
     state: &PuzzleState,
     metamoves: &[MetaMove],
     depth: usize,
 ) -> MetaMove {
-    let mut best_metamove = MetaMove::empty(puzzle);
+    let mut best_metamove = MetaMove::empty(Rc::clone(&puzzle));
     let mut best_score = puzzle.get_num_solved_pieces(state);
 
     traverse_combinations(
         metamoves,
         depth,
-        MetaMove::empty(puzzle),
+        MetaMove::empty(Rc::clone(&puzzle)),
         &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
-            previous_metamove.apply(puzzle, new_metamove)
+            previous_metamove.apply(new_metamove)
         },
         &mut |mm| {
             let next_state = puzzle.get_derived_state(state, &mm.face_map);
@@ -140,7 +141,11 @@ fn find_best_metamove(
     best_metamove
 }
 
-fn combine_metamoves(puzzle: &TwistyPuzzle, metamoves: &[MetaMove], depth: usize) -> Vec<MetaMove> {
+fn combine_metamoves(
+    puzzle: Rc<TwistyPuzzle>,
+    metamoves: &[MetaMove],
+    depth: usize,
+) -> Vec<MetaMove> {
     let mut combined_metamoves = vec![];
 
     traverse_combinations(
@@ -148,7 +153,7 @@ fn combine_metamoves(puzzle: &TwistyPuzzle, metamoves: &[MetaMove], depth: usize
         depth,
         MetaMove::empty(puzzle),
         &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
-            previous_metamove.apply(puzzle, new_metamove)
+            previous_metamove.apply(new_metamove)
         },
         &mut |mm| {
             if mm.num_affected_pieces != 0 && mm.num_affected_pieces <= 8 {

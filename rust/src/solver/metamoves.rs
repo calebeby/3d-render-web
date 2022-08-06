@@ -1,27 +1,28 @@
-use web_sys::console;
-
 use crate::traverse_combinations::{traverse_combinations, TraverseResult};
 use crate::twisty_puzzle::{Symmetry, Turn};
 use crate::{bijection::Bijection, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::fmt::Debug;
 use std::hash::Hash;
+use std::rc::Rc;
 
 /// A metamove is a set of moves that combines to one large "move"
 /// that ends up (hopefully) moving only a small number of pieces.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MetaMove {
     pub turns: Vec<usize>,
     // The indices of this vector are the new face indexes.
     // The values are the old face indexes to pull colors from.
     pub face_map: Bijection,
     pub num_affected_pieces: usize,
+    pub puzzle: Rc<TwistyPuzzle>,
 }
 
 impl MetaMove {
     #[inline]
-    pub fn new(puzzle: &TwistyPuzzle, turns: Vec<usize>, face_map: Bijection) -> Self {
+    pub fn new(puzzle: Rc<TwistyPuzzle>, turns: Vec<usize>, face_map: Bijection) -> Self {
         let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &face_map);
         let num_affected_pieces =
             puzzle.get_num_pieces() - puzzle.get_num_solved_pieces(&derived_state);
@@ -30,10 +31,11 @@ impl MetaMove {
             turns,
             face_map,
             num_affected_pieces,
+            puzzle,
         }
     }
     #[inline]
-    pub fn new_infer_face_map(puzzle: &TwistyPuzzle, turns: Vec<usize>) -> Self {
+    pub fn new_infer_face_map(puzzle: Rc<TwistyPuzzle>, turns: Vec<usize>) -> Self {
         let face_map = turns.iter().fold(
             Bijection::identity(puzzle.get_num_faces()),
             |face_map, &turn_index| face_map.apply(&puzzle.turns[turn_index].face_map),
@@ -41,17 +43,18 @@ impl MetaMove {
         Self::new(puzzle, turns, face_map)
     }
     #[inline]
-    pub fn empty(puzzle: &TwistyPuzzle) -> Self {
+    pub fn empty(puzzle: Rc<TwistyPuzzle>) -> Self {
         MetaMove {
             turns: vec![],
             face_map: Bijection::identity(puzzle.get_num_faces()),
             num_affected_pieces: 0,
+            puzzle,
         }
     }
     #[inline]
-    pub fn apply(&self, puzzle: &TwistyPuzzle, other: &MetaMove) -> Self {
+    pub fn apply(&self, other: &MetaMove) -> Self {
         MetaMove::new(
-            puzzle,
+            Rc::clone(&self.puzzle),
             self.turns
                 .iter()
                 .chain(other.turns.iter())
@@ -73,17 +76,35 @@ impl MetaMove {
                 .apply(&self.face_map)
                 .apply(&symmetry.face_map.invert()),
             num_affected_pieces: self.num_affected_pieces,
+            puzzle: Rc::clone(&self.puzzle),
         }
     }
     #[inline]
-    pub fn invert(&self, puzzle: &TwistyPuzzle) -> Self {
+    pub fn invert(&self) -> Self {
         let inverted_turns = self
             .turns
             .iter()
             .rev()
-            .map(|&turn_index| puzzle.inverted_turn_index(turn_index))
+            .map(|&turn_index| self.puzzle.inverted_turn_index(turn_index))
             .collect();
-        MetaMove::new(puzzle, inverted_turns, self.face_map.invert())
+        MetaMove::new(
+            Rc::clone(&self.puzzle),
+            inverted_turns,
+            self.face_map.invert(),
+        )
+    }
+}
+
+impl Debug for MetaMove {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let turns: Vec<String> = self
+            .turns
+            .iter()
+            .map(|turn_index| self.puzzle.turn_names[*turn_index].clone())
+            .collect();
+        f.debug_struct("MetaMove")
+            .field("turns", &turns.join(", "))
+            .finish()
     }
 }
 
@@ -120,7 +141,7 @@ impl Ord for MetaMove {
 }
 
 pub fn discover_metamoves<Filter>(
-    puzzle: &TwistyPuzzle,
+    puzzle: Rc<TwistyPuzzle>,
     filter: Filter,
     max_turns: usize,
 ) -> Vec<MetaMove>
@@ -136,7 +157,7 @@ where
         max_turns - 1,
         // We'll start out with a single known turn,
         // and then copy the metamoves all over the puzzle at the end.
-        MetaMove::new_infer_face_map(puzzle, vec![0]),
+        MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]),
         &|previous_metamove: &MetaMove, (turn_index, turn): &(usize, &Turn)| {
             let face_map = previous_metamove.face_map.apply(&turn.face_map);
 
@@ -147,7 +168,7 @@ where
                 .cloned()
                 .collect();
 
-            MetaMove::new(puzzle, new_turns, face_map)
+            MetaMove::new(Rc::clone(&puzzle), new_turns, face_map)
         },
         &mut |metamove| {
             // Ignore "move sequences" if they are just one move
@@ -200,37 +221,37 @@ mod tests {
 
     #[test]
     fn invert_metamoves() {
-        let puzzle = puzzles::rubiks_cube_3x3();
-        let mm1 = MetaMove::new_infer_face_map(&puzzle, vec![0]);
+        let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
+        let mm1 = MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]);
         assert_eq!(
-            mm1.invert(&puzzle),
-            MetaMove::new_infer_face_map(&puzzle, vec![1])
+            mm1.invert(),
+            MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![1])
         );
-        let mm2 = MetaMove::new_infer_face_map(&puzzle, vec![1, 3, 5, 7]);
+        let mm2 = MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![1, 3, 5, 7]);
         assert_eq!(
-            mm2.invert(&puzzle),
-            MetaMove::new_infer_face_map(&puzzle, vec![6, 4, 2, 0])
+            mm2.invert(),
+            MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![6, 4, 2, 0])
         );
     }
 
     #[test]
     fn test_apply_symmetry() {
-        let puzzle = puzzles::rubiks_cube_3x3();
-        let mm1 = MetaMove::new_infer_face_map(&puzzle, vec![0, 2, 4]);
+        let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
+        let mm1 = MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0, 2, 4]);
         for symmetry in &puzzle.symmetries {
             let mm2 = mm1.apply_symmetry(symmetry.1);
             assert_eq!(
                 &mm2,
-                &MetaMove::new_infer_face_map(&puzzle, mm2.turns.clone())
+                &MetaMove::new_infer_face_map(Rc::clone(&puzzle), mm2.turns.clone())
             );
         }
     }
 
     #[test]
     fn test_discover_metamoves_2x2() {
-        let puzzle = puzzles::rubiks_cube_2x2();
+        let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
         let solved_state = puzzle.get_initial_state();
-        let mut all_metamoves_2_moves = discover_metamoves(&puzzle, |_| true, 2);
+        let mut all_metamoves_2_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 2);
 
         for metamove in &all_metamoves_2_moves {
             assert_eq!(
@@ -256,16 +277,16 @@ mod tests {
             .map(|mm| (mm.num_affected_pieces, mm.turns.clone()))
             .collect::<Vec<_>>());
 
-        let all_metamoves_4_moves = discover_metamoves(&puzzle, |_| true, 4);
+        let all_metamoves_4_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 4);
         assert_eq!(all_metamoves_4_moves.len(), 687);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 4);
     }
 
     #[test]
     fn test_discover_metamoves_pyraminx() {
-        let puzzle = puzzles::pyraminx();
+        let puzzle = Rc::new(puzzles::pyraminx());
         let solved_state = puzzle.get_initial_state();
-        let all_metamoves_4_moves = discover_metamoves(&puzzle, |_| true, 4);
+        let all_metamoves_4_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 4);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 3);
         for mm in &all_metamoves_4_moves {
             if mm.num_affected_pieces == 3 {
@@ -298,9 +319,9 @@ mod tests {
 
     #[test]
     fn test_discover_metamoves_3x3() {
-        let puzzle = puzzles::rubiks_cube_3x3();
+        let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
         let solved_state = puzzle.get_initial_state();
-        let all_metamoves_3_moves = discover_metamoves(&puzzle, |_| true, 3);
+        let all_metamoves_3_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 3);
         assert_eq!(all_metamoves_3_moves[0].num_affected_pieces, 8);
         assert_eq!(all_metamoves_3_moves[0].turns.len(), 2);
         // Two turns to affect 8 pieces, it is a double-turn on a single face
