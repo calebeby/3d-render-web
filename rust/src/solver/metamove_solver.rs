@@ -1,5 +1,5 @@
 use super::{
-    metamoves::{discover_metamoves, MetaMove},
+    metamoves::{combine_metamoves, discover_metamoves, MetaMove},
     ScrambleSolver,
 };
 use crate::{
@@ -31,34 +31,67 @@ impl ScrambleSolver for MetaMoveSolver {
         let metamoves = discover_metamoves(
             Rc::clone(&puzzle),
             |mm| mm.num_affected_pieces < turn_num_affected_pieces,
-            // |mm| true,
             max_discover_metamoves_depth,
         );
         console::time_end_with_label("discover_metamoves");
-        console::log_1(&metamoves.len().into());
-        // console::time_with_label("combine_metamoves");
-        // let metamoves = combine_metamoves(&puzzle, &metamoves, 2);
-        // console::time_end_with_label("combine_metamoves");
-        console::log_1(&metamoves.len().into());
-        // let metamoves: Vec<MetaMove> = metamoves.into_iter().take(4).collect();
-        console::log_1(&"solve".into());
 
         if metamoves.is_empty() {
             throw_str("no metamoves");
         }
-
         console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
+        let best = metamoves.iter().min().unwrap();
+        let best_pieces = best.num_affected_pieces;
         console::log_1(
             &format!(
                 "best metamove: {} turns affecting {} pieces",
-                metamoves[0].turns.len(),
-                metamoves[0].num_affected_pieces
+                best.turns.len(),
+                best.num_affected_pieces
             )
             .into(),
         );
 
+        console::time_with_label("filter metamoves");
+        let metamoves: Vec<_> = metamoves
+            .into_iter()
+            .filter(|mm| mm.num_affected_pieces <= best_pieces + 1)
+            .collect();
+        console::time_end_with_label("filter metamoves");
+        console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
+
+        console::time_with_label("combine_metamoves");
+        let metamoves = combine_metamoves(
+            Rc::clone(&puzzle),
+            |mm| mm.num_affected_pieces < turn_num_affected_pieces,
+            &metamoves,
+            3,
+        );
+        console::time_end_with_label("combine_metamoves");
+
+        if metamoves.is_empty() {
+            throw_str("no metamoves");
+        }
+        console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
+        let best = metamoves.iter().min().unwrap();
+        let best_pieces = best.num_affected_pieces;
+        console::log_1(
+            &format!(
+                "best metamove: {} turns affecting {} pieces",
+                best.turns.len(),
+                best.num_affected_pieces
+            )
+            .into(),
+        );
+
+        console::time_with_label("filter metamoves");
+        let metamoves: Vec<_> = metamoves
+            .into_iter()
+            .filter(|mm| mm.num_affected_pieces <= best_pieces + 1)
+            .collect();
+        console::time_end_with_label("filter metamoves");
+        console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
+
         Self {
-            depth: (1_000_000f64.ln() / (metamoves.len() as f64).ln()) as usize,
+            depth: (500_000f64.ln() / (metamoves.len() as f64).ln()) as usize,
             metamoves,
             puzzle,
             state: initial_state,
@@ -139,30 +172,4 @@ fn find_best_metamove(
     );
 
     best_metamove
-}
-
-fn combine_metamoves(
-    puzzle: Rc<TwistyPuzzle>,
-    metamoves: &[MetaMove],
-    depth: usize,
-) -> Vec<MetaMove> {
-    let mut combined_metamoves = vec![];
-
-    traverse_combinations(
-        metamoves,
-        depth,
-        MetaMove::empty(puzzle),
-        &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
-            previous_metamove.apply(new_metamove)
-        },
-        &mut |mm| {
-            if mm.num_affected_pieces != 0 && mm.num_affected_pieces <= 8 {
-                combined_metamoves.push(mm.clone());
-            }
-            TraverseResult::Continue
-        },
-    );
-
-    combined_metamoves.sort();
-    combined_metamoves
 }

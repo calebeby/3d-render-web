@@ -215,10 +215,36 @@ where
         },
     );
 
-    let mut best_metamoves: Vec<MetaMove> = best_metamoves.into_values().collect();
+    best_metamoves.into_values().collect()
+}
 
-    best_metamoves.sort();
-    best_metamoves
+pub fn combine_metamoves<Filter>(
+    puzzle: Rc<TwistyPuzzle>,
+    filter: Filter,
+    metamoves: &[MetaMove],
+    depth: usize,
+) -> Vec<MetaMove>
+where
+    Filter: Fn(&MetaMove) -> bool,
+{
+    let mut combined_metamoves = vec![];
+
+    traverse_combinations(
+        metamoves,
+        depth,
+        MetaMove::empty(puzzle),
+        &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
+            previous_metamove.apply(new_metamove)
+        },
+        &mut |mm| {
+            if mm.num_affected_pieces != 0 && filter(mm) {
+                combined_metamoves.push(mm.clone());
+            }
+            TraverseResult::Continue
+        },
+    );
+
+    combined_metamoves
 }
 
 #[cfg(test)]
