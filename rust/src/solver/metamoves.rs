@@ -287,6 +287,7 @@ mod tests {
         let puzzle = Rc::new(puzzles::rubiks_cube_2x2());
         let solved_state = puzzle.get_initial_state();
         let mut all_metamoves_2_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 2);
+        all_metamoves_2_moves.sort();
 
         for metamove in &all_metamoves_2_moves {
             assert_eq!(
@@ -300,19 +301,13 @@ mod tests {
 
         assert_eq!(all_metamoves_2_moves.len(), 27);
 
-        all_metamoves_2_moves.sort_by(|mm1, mm2| {
-            mm1.num_affected_pieces
-                .cmp(&mm2.num_affected_pieces)
-                .then(mm1.face_map.0.cmp(&mm2.face_map.0))
-                .then(mm1.turns.cmp(&mm2.turns))
-        });
-
         assert_debug_snapshot!(all_metamoves_2_moves
             .iter()
             .map(|mm| (mm.num_affected_pieces, mm.turns.clone()))
             .collect::<Vec<_>>());
 
-        let all_metamoves_4_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 4);
+        let mut all_metamoves_4_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 4);
+        all_metamoves_4_moves.sort();
         assert_eq!(all_metamoves_4_moves.len(), 687);
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 4);
     }
@@ -321,7 +316,8 @@ mod tests {
     fn test_discover_metamoves_pyraminx() {
         let puzzle = Rc::new(puzzles::pyraminx());
         let solved_state = puzzle.get_initial_state();
-        let all_metamoves_4_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 4);
+        let mut all_metamoves_4_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 4);
+        all_metamoves_4_moves.sort();
         assert_eq!(all_metamoves_4_moves[0].num_affected_pieces, 3);
         for mm in &all_metamoves_4_moves {
             if mm.num_affected_pieces == 3 {
@@ -356,7 +352,8 @@ mod tests {
     fn test_discover_metamoves_3x3() {
         let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
         let solved_state = puzzle.get_initial_state();
-        let all_metamoves_3_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 3);
+        let mut all_metamoves_3_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 3);
+        all_metamoves_3_moves.sort();
         assert_eq!(all_metamoves_3_moves[0].num_affected_pieces, 8);
         assert_eq!(all_metamoves_3_moves[0].turns.len(), 2);
         // Two turns to affect 8 pieces, it is a double-turn on a single face
