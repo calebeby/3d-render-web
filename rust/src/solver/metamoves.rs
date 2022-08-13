@@ -79,6 +79,35 @@ impl MetaMove {
             puzzle: Rc::clone(&self.puzzle),
         }
     }
+    /// Groups the affected faces of a MetaMove by their cycles.
+    /// Returns a vector of the cycles of faces.
+    /// Each item in the returned vector is a cycle.
+    /// Each cycle is represented as a vector containing, in order,
+    /// the face indexes that a face will cycle through before returning to its original position
+    pub fn cycles(&self) -> Vec<Vec<usize>> {
+        let mut faces_have_cycles = vec![false; self.face_map.0.len()];
+        let mut cycles = vec![];
+        #[allow(clippy::needless_range_loop)]
+        for face_index in 0..self.face_map.0.len() {
+            let is_in_cycle = faces_have_cycles[face_index];
+            let maps_to_self = self.face_map.0[face_index] == face_index;
+            if is_in_cycle || maps_to_self {
+                continue;
+            }
+            let mut cycle = vec![face_index];
+            let mut f = face_index;
+            loop {
+                faces_have_cycles[f] = true;
+                f = self.face_map.0[f];
+                if f == face_index {
+                    break;
+                }
+                cycle.push(f);
+            }
+            cycles.push(cycle)
+        }
+        cycles
+    }
     #[inline]
     pub fn invert(&self) -> Self {
         let inverted_turns = self
@@ -279,6 +308,50 @@ mod tests {
                 &mm2,
                 &MetaMove::new_infer_face_map(Rc::clone(&puzzle), mm2.turns.clone())
             );
+        }
+    }
+
+    #[test]
+    fn test_cycles() {
+        let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
+
+        // https://www.speedsolving.com/wiki/index.php/Sexy_Move
+        let turn_sequence: Vec<usize> = vec!["R", "U", "R'", "U'"]
+            .iter()
+            .map(|turn_name| {
+                puzzle
+                    .turn_names
+                    .iter()
+                    .position(|t| t == turn_name)
+                    .unwrap()
+            })
+            .collect();
+
+        let mm1 = MetaMove::new_infer_face_map(Rc::clone(&puzzle), turn_sequence);
+
+        let cycles = mm1.cycles();
+
+        // There should be four cycles: two three-step cycles for edges,
+        // and two six-step cycles for corners
+        assert_eq!(cycles.len(), 4);
+        assert_eq!(cycles.iter().filter(|cycle| cycle.len() == 6).count(), 2);
+        assert_eq!(cycles.iter().filter(|cycle| cycle.len() == 3).count(), 2);
+
+        // Each face_index should not appear in multiple cycles
+        let mut seen_indexes = vec![false; puzzle.faces.len()];
+        for cycle in &cycles {
+            for face_index in cycle {
+                if seen_indexes[*face_index] {
+                    panic!("Face {} appeared in multiple cycles", face_index);
+                }
+                seen_indexes[*face_index] = true;
+            }
+        }
+        // Every face_index that was not in a cycle should have mapped to itself
+        for (face_index, seen) in seen_indexes.iter().enumerate() {
+            if !seen {
+                assert_eq!(mm1.face_map.0[face_index], face_index);
+            }
         }
     }
 
