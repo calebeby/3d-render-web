@@ -3,6 +3,7 @@ use std::f64::consts::TAU;
 use crate::plane::Plane;
 use crate::polyhedron::Polyhedron;
 use crate::twisty_puzzle::{CutDefinition, TwistyPuzzle};
+use crate::vector3d::Vector3D;
 
 fn tetrahedron() -> Polyhedron {
     Polyhedron::generate(3, 3)
@@ -129,8 +130,6 @@ pub fn compy_cube() -> TwistyPuzzle {
 pub fn skewb() -> TwistyPuzzle {
     let cube = cube();
     let opposite_vertex_pairs = cube.opposite_vertex_pairs();
-    let distance_between_opposites =
-        (opposite_vertex_pairs[0].0 - opposite_vertex_pairs[0].1).magnitude();
 
     TwistyPuzzle::new(
         &cube,
@@ -138,13 +137,10 @@ pub fn skewb() -> TwistyPuzzle {
             .into_iter()
             .map(|(&vertex_a, _vertex_b)| {
                 let plane = Plane {
-                    point: vertex_a,
+                    point: Vector3D::zero(),
                     normal: vertex_a,
                 };
-                CutDefinition::new_infer_name(
-                    plane.offset(-distance_between_opposites / 2.0),
-                    TAU / 3.0,
-                )
+                CutDefinition::new_infer_name(plane, TAU / 3.0)
             })
             .collect::<Vec<_>>(),
     )
