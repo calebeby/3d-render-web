@@ -3,7 +3,7 @@ use crate::twisty_puzzle::{Symmetry, Turn};
 use crate::{bijection::Bijection, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
@@ -108,6 +108,13 @@ impl MetaMove {
         }
         cycles
     }
+    /// Returns an array of metamoves
+    /// that involve repeating this metamove a certain number of times
+    /// in order to produce longer metamoves that affect fewer pieces
+    pub fn discover_repeat_metamoves(&self) -> Vec<MetaMove> {
+        let output = vec![];
+        output
+    }
     #[inline]
     pub fn invert(&self) -> Self {
         let inverted_turns = self
@@ -176,6 +183,72 @@ impl Ord for MetaMove {
             .then(self.turns.len().cmp(&other.turns.len()))
             .then(other.turns.cmp(&self.turns))
     }
+}
+
+/// Given an array of cycles lengths (each item in the array is a number of cycles)
+/// Return an array of numbers of repetitions that will affect fewer pieces.
+/// For example:
+/// Given [3-cycle, 3-cycle, 6-cycle, 5-cycle]:
+/// Returns: [3, 6, 5, 15],
+/// meaning that the metamove should be repeated 3 times, 6 times, and 5 times, and 15 times,
+/// each resulting in a new metamove that cancels some of the cycles
+/// (and affects fewer pieces)
+fn repeat_to_cancel_cycles(cycles: &[usize]) -> HashSet<usize> {
+    let unique_cycle_sizes: Vec<usize> = cycles
+        .iter()
+        .cloned()
+        .collect::<HashSet<usize>>()
+        .into_iter()
+        .collect();
+    // Choose every combination of the cycle sizes
+    // (power ser)
+    let mut combinations_of_cycles: Vec<Vec<usize>> =
+        unique_cycle_sizes
+            .iter()
+            .fold(vec![vec![]], |mut combinations, item| {
+                let i = combinations.clone().into_iter().map(|mut combination| {
+                    combination.push(*item);
+                    combination
+                });
+                combinations.extend(i);
+                combinations
+            });
+    // Remove the last element (original complete set of all items, cancels out completely)
+    combinations_of_cycles.remove(combinations_of_cycles.len() - 1);
+    // Remove the first element (empty set)
+    combinations_of_cycles.swap_remove(0);
+
+    let mut out = HashSet::new();
+    for combination_of_cycles in combinations_of_cycles {
+        let first = combination_of_cycles[0];
+        let repeat = combination_of_cycles.into_iter().fold(first, lcm);
+        let cancels_everything = unique_cycle_sizes
+            .iter()
+            .all(|other_cycle_size| (repeat % *other_cycle_size) == 0);
+        if !cancels_everything {
+            out.insert(repeat);
+        }
+    }
+    out
+}
+
+/// https://rosettacode.org/wiki/Least_common_multiple#Rust
+fn gcd(a: usize, b: usize) -> usize {
+    match ((a, b), (a & 1, b & 1)) {
+        ((x, y), _) if x == y => y,
+        ((0, x), _) | ((x, 0), _) => x,
+        ((x, y), (0, 1)) | ((y, x), (1, 0)) => gcd(x >> 1, y),
+        ((x, y), (0, 0)) => gcd(x >> 1, y >> 1) << 1,
+        ((x, y), (1, 1)) => {
+            let (x, y) = (std::cmp::min(x, y), std::cmp::max(x, y));
+            gcd((y - x) >> 1, x)
+        }
+        _ => unreachable!(),
+    }
+}
+/// https://rosettacode.org/wiki/Least_common_multiple#Rust
+fn lcm(a: usize, b: usize) -> usize {
+    a * b / gcd(a, b)
 }
 
 pub fn discover_metamoves<Filter>(
@@ -327,9 +400,9 @@ mod tests {
             })
             .collect();
 
-        let mm1 = MetaMove::new_infer_face_map(Rc::clone(&puzzle), turn_sequence);
+        let mm = MetaMove::new_infer_face_map(Rc::clone(&puzzle), turn_sequence);
 
-        let cycles = mm1.cycles();
+        let cycles = mm.cycles();
 
         // There should be four cycles: two three-step cycles for edges,
         // and two six-step cycles for corners
@@ -350,9 +423,60 @@ mod tests {
         // Every face_index that was not in a cycle should have mapped to itself
         for (face_index, seen) in seen_indexes.iter().enumerate() {
             if !seen {
-                assert_eq!(mm1.face_map.0[face_index], face_index);
+                assert_eq!(mm.face_map.0[face_index], face_index);
             }
         }
+    }
+
+    #[test]
+    fn test_repeat_to_cancel_cycles() {
+        fn run(cycles: &[usize]) -> Vec<usize> {
+            let mut out: Vec<usize> = repeat_to_cancel_cycles(cycles).into_iter().collect();
+            out.sort();
+            out
+        }
+
+        // Basic case
+        assert_eq!(run(&[2, 3]), [2, 3]);
+        // Order shouldn't matter
+        assert_eq!(run(&[3, 2]), [2, 3]);
+        // Ignore repeats
+        assert_eq!(run(&[2, 3, 2]), [2, 3]);
+
+        // Don't repeat (4) if everything will cancel out
+        assert_eq!(run(&[2, 4]), [2]);
+        // Don't repeat (8) if everything will cancel out
+        assert_eq!(run(&[2, 4, 8]), [2, 4]);
+
+        // LCM of pairs of numbers (skips 8 since 4 is divisible by 2)
+        assert_eq!(run(&[2, 3, 4]), [2, 3, 4, 6]);
+        // Skips 20 since that would happen to cancel them all
+        // Skips 8 since 4 works just as well
+        assert_eq!(run(&[2, 4, 5]), [2, 4, 5, 10]);
+
+        // Skips 12 or bigger factors since that would cancel them all
+        assert_eq!(run(&[3, 3, 3, 4, 4, 6, 6, 12]), [3, 4, 6]);
+        assert_eq!(run(&[2, 3, 4, 5]), [2, 3, 4, 5, 6, 10, 12, 15, 20, 30]);
+    }
+
+    #[test]
+    fn test_discover_repeat_metamoves() {
+        let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
+
+        // https://www.speedsolving.com/wiki/index.php/Sexy_Move
+        let turn_sequence: Vec<usize> = vec!["R", "U", "R'", "U'"]
+            .iter()
+            .map(|turn_name| {
+                puzzle
+                    .turn_names
+                    .iter()
+                    .position(|t| t == turn_name)
+                    .unwrap()
+            })
+            .collect();
+
+        let mm = MetaMove::new_infer_face_map(Rc::clone(&puzzle), turn_sequence);
+        assert_eq!(mm.discover_repeat_metamoves(), []);
     }
 
     #[test]
