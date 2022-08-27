@@ -24,12 +24,13 @@ impl ScrambleSolver for MetaMoveSolver {
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
         console::time_with_label("discover_metamoves");
         let max_discover_metamoves_depth =
-            (5_000_000f64.ln() / (puzzle.turns.len() as f64).ln()) as usize;
+            (2_000_000f64.ln() / (puzzle.turns.len() as f64).ln()) as usize;
         console::log_1(&max_discover_metamoves_depth.into());
         let turn_num_affected_pieces =
             MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]).num_affected_pieces;
         let metamoves = discover_metamoves(
             Rc::clone(&puzzle),
+            // |_mm| true,
             |mm| mm.num_affected_pieces < turn_num_affected_pieces,
             max_discover_metamoves_depth,
         );
@@ -40,7 +41,6 @@ impl ScrambleSolver for MetaMoveSolver {
         }
         console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
         let best = metamoves.iter().min().unwrap();
-        let best_pieces = best.num_affected_pieces;
         console::log_1(
             &format!(
                 "best metamove: {} turns affecting {} pieces",
@@ -50,29 +50,32 @@ impl ScrambleSolver for MetaMoveSolver {
             .into(),
         );
 
-        console::time_with_label("filter metamoves");
+        console::time_with_label("combine metamoves");
+        let metamoves: Vec<_> = combine_metamoves(Rc::clone(&puzzle), |_mm| true, &metamoves, 2);
+        console::time_end_with_label("combine metamoves");
+        let best = metamoves.iter().min().unwrap();
+        console::log_1(
+            &format!(
+                "best metamove: {} turns affecting {} pieces",
+                best.turns.len(),
+                best.num_affected_pieces
+            )
+            .into(),
+        );
+
+        console::time_with_label("repeat metamoves");
         let metamoves: Vec<_> = metamoves
             .into_iter()
-            .filter(|mm| mm.num_affected_pieces <= best_pieces + 1)
+            .flat_map(|mm| {
+                mm.discover_repeat_metamoves()
+                    .into_iter()
+                    .chain(std::iter::once(mm))
+            })
             .collect();
-        console::time_end_with_label("filter metamoves");
-        console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
+        console::time_end_with_label("repeat metamoves");
 
-        console::time_with_label("combine_metamoves");
-        let metamoves = combine_metamoves(
-            Rc::clone(&puzzle),
-            |mm| mm.num_affected_pieces < turn_num_affected_pieces,
-            &metamoves,
-            3,
-        );
-        console::time_end_with_label("combine_metamoves");
-
-        if metamoves.is_empty() {
-            throw_str("no metamoves");
-        }
         console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
         let best = metamoves.iter().min().unwrap();
-        let best_pieces = best.num_affected_pieces;
         console::log_1(
             &format!(
                 "best metamove: {} turns affecting {} pieces",
@@ -85,13 +88,14 @@ impl ScrambleSolver for MetaMoveSolver {
         console::time_with_label("filter metamoves");
         let metamoves: Vec<_> = metamoves
             .into_iter()
-            .filter(|mm| mm.num_affected_pieces <= best_pieces + 1)
+            .filter(|mm| mm.num_affected_pieces <= 3)
             .collect();
         console::time_end_with_label("filter metamoves");
         console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
 
         Self {
-            depth: (500_000f64.ln() / (metamoves.len() as f64).ln()) as usize,
+            // depth: (500_000f64.ln() / (metamoves.len() as f64).ln()) as usize,
+            depth: 2,
             metamoves,
             puzzle,
             state: initial_state,
