@@ -24,6 +24,10 @@ impl MetaMove {
     #[inline]
     pub fn new(puzzle: Rc<TwistyPuzzle>, turns: Vec<usize>, face_map: Bijection) -> Self {
         let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &face_map);
+        #[cfg(test)]
+        {
+            assert_eq!(face_map.0.len(), puzzle.faces.len());
+        }
         let num_affected_pieces =
             puzzle.get_num_pieces() - puzzle.get_num_solved_pieces(&derived_state);
 
@@ -33,6 +37,21 @@ impl MetaMove {
             num_affected_pieces,
             puzzle,
         }
+    }
+    #[cfg(test)]
+    fn new_from_turn_names(puzzle: Rc<TwistyPuzzle>, turns: &[&str]) -> Self {
+        let turn_sequence: Vec<usize> = turns
+            .iter()
+            .map(|turn_name| {
+                puzzle
+                    .turn_names
+                    .iter()
+                    .position(|t| t == turn_name)
+                    .unwrap()
+            })
+            .collect();
+
+        MetaMove::new_infer_face_map(Rc::clone(&puzzle), turn_sequence)
     }
     #[inline]
     pub fn new_infer_face_map(puzzle: Rc<TwistyPuzzle>, turns: Vec<usize>) -> Self {
@@ -112,7 +131,41 @@ impl MetaMove {
     /// that involve repeating this metamove a certain number of times
     /// in order to produce longer metamoves that affect fewer pieces
     pub fn discover_repeat_metamoves(&self) -> Vec<MetaMove> {
-        let output = vec![];
+        let cycles = self.cycles();
+        let output =
+            repeat_to_cancel_cycles(&cycles.iter().map(|c| c.len()).collect::<Vec<usize>>())
+                .into_iter()
+                .map(|times_to_repeat| {
+                    let new_turns: Vec<usize> = std::iter::repeat(self.turns.iter().cloned())
+                        .take(times_to_repeat)
+                        .flatten()
+                        .collect();
+                    let mut face_map_vec: Vec<usize> =
+                        (0..self.face_map.0.len()).into_iter().collect();
+                    for cycle in &cycles {
+                        // If cycle cancels out; ignore it
+                        if (times_to_repeat % cycle.len()) == 0 {
+                            continue;
+                        }
+                        for i in 0..cycle.len() {
+                            let idx = cycle[i];
+                            let target_idx = cycle[(i + times_to_repeat) % cycle.len()];
+                            face_map_vec[idx] = target_idx;
+                        }
+                    }
+                    let face_map = Bijection(face_map_vec);
+                    #[cfg(test)]
+                    {
+                        // Test to make sure this "shortcut" yields the same result
+                        let unoptimized_mm = MetaMove::new_infer_face_map(
+                            Rc::clone(&self.puzzle),
+                            new_turns.clone(),
+                        );
+                        assert_eq!(face_map, unoptimized_mm.face_map)
+                    }
+                    MetaMove::new(Rc::clone(&self.puzzle), new_turns, face_map)
+                })
+                .collect();
         output
     }
     #[inline]
@@ -142,7 +195,7 @@ impl Debug for MetaMove {
         struct TurnSequence(Vec<String>);
         impl Debug for TurnSequence {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "[{}] ({})", &self.0.join(", "), self.0.len())
+                write!(f, "[{}] ({} turns)", &self.0.join(", "), self.0.len())
             }
         }
 
@@ -389,18 +442,7 @@ mod tests {
         let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
 
         // https://www.speedsolving.com/wiki/index.php/Sexy_Move
-        let turn_sequence: Vec<usize> = vec!["R", "U", "R'", "U'"]
-            .iter()
-            .map(|turn_name| {
-                puzzle
-                    .turn_names
-                    .iter()
-                    .position(|t| t == turn_name)
-                    .unwrap()
-            })
-            .collect();
-
-        let mm = MetaMove::new_infer_face_map(Rc::clone(&puzzle), turn_sequence);
+        let mm = MetaMove::new_from_turn_names(Rc::clone(&puzzle), &["R", "U", "R'", "U'"]);
 
         let cycles = mm.cycles();
 
@@ -463,20 +505,99 @@ mod tests {
     fn test_discover_repeat_metamoves() {
         let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
 
-        // https://www.speedsolving.com/wiki/index.php/Sexy_Move
-        let turn_sequence: Vec<usize> = vec!["R", "U", "R'", "U'"]
-            .iter()
-            .map(|turn_name| {
-                puzzle
-                    .turn_names
-                    .iter()
-                    .position(|t| t == turn_name)
-                    .unwrap()
-            })
-            .collect();
+        fn run(mm: &MetaMove) -> Vec<MetaMove> {
+            let mut out: Vec<MetaMove> = mm.discover_repeat_metamoves();
+            out.sort();
+            out
+        }
 
-        let mm = MetaMove::new_infer_face_map(Rc::clone(&puzzle), turn_sequence);
-        assert_eq!(mm.discover_repeat_metamoves(), []);
+        // https://www.speedsolving.com/wiki/index.php/Sexy_Move
+        let mm = MetaMove::new_from_turn_names(Rc::clone(&puzzle), &["R", "U", "R'", "U'"]);
+        // Two 6-cycles and two 3-cycles so repeating 3 times will cancel out the 3-cycles
+        assert_debug_snapshot!(mm.cycles().iter().map(|c| c.len()).collect::<Vec<usize>>(), @r###"
+        [
+            6,
+            6,
+            3,
+            3,
+        ]
+        "###);
+        assert_debug_snapshot!(run(&mm), @r###"
+        [
+            MetaMove {
+                turns: [R, U, R', U', R, U, R', U', R, U, R', U'] (12 turns),
+                num_affected_pieces: 4,
+                ..
+            },
+        ]
+        "###);
+
+        let mm = MetaMove::new_from_turn_names(Rc::clone(&puzzle), &["R", "R", "U", "U"]);
+        // Bunch of 3-cycles and 2-cycles, so repeating twice or three times cancels
+        assert_debug_snapshot!(mm.cycles().iter().map(|c| c.len()).collect::<Vec<usize>>(), @r###"
+        [
+            3,
+            3,
+            2,
+            3,
+            3,
+            3,
+            2,
+            2,
+            3,
+            3,
+            3,
+            2,
+        ]
+        "###);
+        assert_debug_snapshot!(run(&mm), @r###"
+        [
+            MetaMove {
+                turns: [R, R, U, U, R, R, U, U, R, R, U, U] (12 turns),
+                num_affected_pieces: 4,
+                ..
+            },
+            MetaMove {
+                turns: [R, R, U, U, R, R, U, U] (8 turns),
+                num_affected_pieces: 9,
+                ..
+            },
+        ]
+        "###);
+
+        let mm = MetaMove::new_from_turn_names(Rc::clone(&puzzle), &["R", "U"]);
+        assert_debug_snapshot!(mm.cycles().iter().map(|c| c.len()).collect::<Vec<usize>>(), @r###"
+        [
+            3,
+            15,
+            7,
+            7,
+        ]
+        "###);
+        assert_debug_snapshot!(run(&mm), @r###"
+        [
+            MetaMove {
+                turns: [R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U] (42 turns),
+                num_affected_pieces: 5,
+                ..
+            },
+            MetaMove {
+                turns: [R, U, R, U, R, U, R, U, R, U, R, U, R, U] (14 turns),
+                num_affected_pieces: 6,
+                ..
+            },
+            MetaMove {
+                turns: [R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U, R, U] (30 turns),
+                num_affected_pieces: 7,
+                ..
+            },
+            MetaMove {
+                turns: [R, U, R, U, R, U] (6 turns),
+                num_affected_pieces: 12,
+                ..
+            },
+        ]
+        "###);
     }
 
     #[test]
