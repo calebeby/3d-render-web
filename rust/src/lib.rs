@@ -250,6 +250,7 @@ fn init() -> Result<(), JsValue> {
             .dyn_into::<web_sys::HtmlButtonElement>()?;
         scramble_button.set_inner_text("Scramble");
         buttons_div.append_child(&scramble_button)?;
+        let mut rng = rand::thread_rng();
 
         let canvas_ctx = canvas_ctx.clone();
         let state = state.clone();
@@ -258,7 +259,7 @@ fn init() -> Result<(), JsValue> {
         let handle_click = move || {
             let mut state = state.borrow_mut();
             state.turn_queue = VecDeque::new();
-            state.puzzle_state = state.puzzle.scramble(&state.puzzle_state, 200);
+            state.puzzle_state = state.puzzle.scramble(&state.puzzle_state, 200, &mut rng);
             render(&state, &canvas_ctx, width.get(), height.get(), 0, 0, false);
         };
 

@@ -547,12 +547,16 @@ impl TwistyPuzzle {
         self.turn_names.iter()
     }
 
-    pub fn scramble(&self, initial_state: &PuzzleState, limit: u64) -> PuzzleState {
+    pub fn scramble<T: Rng>(
+        &self,
+        initial_state: &PuzzleState,
+        limit: u64,
+        rng: &mut T,
+    ) -> PuzzleState {
         let mut state = initial_state.clone();
 
         let num_turns = self.turns.len();
 
-        let mut rng = rand::thread_rng();
         let range = Uniform::new(0, num_turns);
 
         for _ in 0..limit {
