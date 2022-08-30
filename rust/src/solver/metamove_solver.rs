@@ -13,9 +13,16 @@ use web_sys::console;
 pub struct MetaMoveSolver {
     puzzle: Rc<TwistyPuzzle>,
     state: PuzzleState,
+    phase: SolvePhase,
     depth: usize,
     metamoves: Vec<MetaMove>,
     buffered_turns: VecDeque<usize>,
+}
+
+#[derive(PartialEq, Eq)]
+enum SolvePhase {
+    Search,
+    Metamoves,
 }
 
 impl ScrambleSolver for MetaMoveSolver {
@@ -136,6 +143,7 @@ impl ScrambleSolver for MetaMoveSolver {
         Self {
             // depth: (500_000f64.ln() / (metamoves.len() as f64).ln()) as usize,
             depth: 2,
+            phase: SolvePhase::Search,
             metamoves,
             puzzle,
             state: initial_state,
@@ -159,6 +167,65 @@ impl Iterator for MetaMoveSolver {
                 .puzzle
                 .get_derived_state_turn_index(&self.state, next_turn);
             return Some(next_turn);
+        }
+
+        // First phase: do a shallow search to make it more solved
+
+        if self.phase == SolvePhase::Search {
+            let mut best_metamove = MetaMove::empty(Rc::clone(&self.puzzle));
+            let mut best_score = self.puzzle.get_num_solved_pieces(&self.state);
+            let individual_turns_metamoves: Vec<MetaMove> = self
+                .puzzle
+                .turns
+                .iter()
+                .enumerate()
+                .map(|(turn_index, turn)| {
+                    MetaMove::new(
+                        Rc::clone(&self.puzzle),
+                        vec![turn_index],
+                        turn.face_map.clone(),
+                    )
+                })
+                .collect();
+
+            for depth in 4..=5 {
+                traverse_combinations(
+                    &individual_turns_metamoves,
+                    depth,
+                    MetaMove::empty(Rc::clone(&self.puzzle)),
+                    // TODO: combining the empty metamove with another takes time, would it be faster to skip it somehow?
+                    &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
+                        previous_metamove.apply(new_metamove)
+                    },
+                    &mut |mm| {
+                        let next_state = self.puzzle.get_derived_state(&self.state, &mm.face_map);
+                        let next_state_score = self.puzzle.get_num_solved_pieces(&next_state);
+                        if next_state_score > best_score
+                            || (next_state_score == best_score
+                                && mm.turns.len() < best_metamove.turns.len())
+                        {
+                            best_metamove = mm.clone();
+                            best_score = next_state_score;
+                        }
+                        TraverseResult::Continue
+                    },
+                );
+
+                if best_metamove.num_affected_pieces != 0 {
+                    let &first_turn = best_metamove.turns.get(0)?;
+                    self.state = self
+                        .puzzle
+                        .get_derived_state_turn_index(&self.state, first_turn);
+                    if best_metamove.turns.len() > 1 {
+                        self.buffered_turns.clear();
+                        for turn in &best_metamove.turns[1..] {
+                            self.buffered_turns.push_back(*turn)
+                        }
+                    }
+                    return Some(first_turn);
+                }
+            }
+            self.phase = SolvePhase::Metamoves;
         }
 
         let options = self.metamoves.clone();
@@ -236,8 +303,9 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(1005);
 
         let mut sum = 0;
-        let num_solves = 20;
-        for _ in 0..num_solves {
+        let mut num_solves = 0;
+        let num_scrambles = 20;
+        for _ in 0..num_scrambles {
             let scrambled_state = puzzle.scramble(&puzzle.get_initial_state(), 20, &mut rng);
             let solution: Vec<_> =
                 MetaMoveSolver::new(Rc::clone(&puzzle), scrambled_state.clone(), ()).collect();
@@ -247,15 +315,19 @@ mod tests {
 
             if out != puzzle.get_initial_state() {
                 println!("It did not solve it")
+            } else {
+                sum += solution.len();
+                num_solves += 1;
             }
 
-            sum += solution.len();
             println!("3x3 solution length: {} turns", solution.len());
         }
 
         println!(
-            "avg 3x3 solution length: {} turns",
-            sum as f64 / num_solves as f64
+            "avg 3x3 solution length: {} turns, ({} / {})",
+            sum as f64 / num_solves as f64,
+            num_solves,
+            num_scrambles
         );
     }
 }
