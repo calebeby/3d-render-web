@@ -6,7 +6,10 @@ use crate::{
     traverse_combinations::{traverse_combinations, TraverseResult},
     twisty_puzzle::{PuzzleState, TwistyPuzzle},
 };
-use std::{collections::VecDeque, rc::Rc};
+use std::{
+    collections::{hash_map::Entry, HashMap, VecDeque},
+    rc::Rc,
+};
 use wasm_bindgen::throw_str;
 use web_sys::console;
 
@@ -76,8 +79,35 @@ impl ScrambleSolver for MetaMoveSolver {
                     .into_iter()
                     .chain(std::iter::once(mm))
             })
-            .filter(|mm| mm.num_affected_pieces <= 4)
+            .filter(|mm| mm.num_affected_pieces <= 3)
             .collect();
+
+        // console::log_1(&format!("all mm {}", metamoves.len()).into());
+
+        let mut metamoves_reduced = HashMap::new();
+
+        for mm in metamoves {
+            let entry = metamoves_reduced.entry(mm.face_map.clone());
+
+            match entry {
+                Entry::Vacant(entry) => {
+                    entry.insert(mm);
+                }
+                Entry::Occupied(mut entry) => {
+                    if entry.get().turns.len() > mm.turns.len() {
+                        // console::log_1(
+                        //     &format!("replacing {:#?} with {:#?}", entry.get(), mm).into(),
+                        // );
+                        entry.insert(mm);
+                    }
+                }
+            }
+        }
+
+        // console::log_1(&format!("reduced mm {}", metamoves_reduced.len()).into());
+
+        let metamoves: Vec<_> = metamoves_reduced.into_values().collect();
+
         // console::time_end_with_label("repeat metamoves");
 
         // console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
@@ -276,7 +306,7 @@ fn find_best_metamove(
                 best_metamove = mm.clone();
                 best_score = next_state_score;
                 // Stop once we find _anything_ better, not the best one
-                return TraverseResult::Break;
+                // return TraverseResult::Break;
             }
             if next_state_score == puzzle.get_num_pieces() {
                 return TraverseResult::Break;
