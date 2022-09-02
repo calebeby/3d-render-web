@@ -11,7 +11,6 @@ use std::{
     rc::Rc,
 };
 use wasm_bindgen::throw_str;
-use web_sys::console;
 
 pub struct MetaMoveSolver {
     puzzle: Rc<TwistyPuzzle>,
@@ -28,14 +27,24 @@ enum SolvePhase {
     Metamoves,
 }
 
+macro_rules! console_log {
+    ($($t:tt)*) => {
+        #[cfg(target_arch = "wasm32")] {
+            web_sys::console::log_1(&format!($($t)*).into());
+        }
+        #[cfg(not(target_arch = "wasm32"))] {
+            println!($($t)*);
+        }
+    };
+}
+
 impl ScrambleSolver for MetaMoveSolver {
     type Opts = ();
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
-        // console::time_with_label("discover_metamoves");
-        let max_discover_metamoves_depth =
-            (2_000_000f64.ln() / (puzzle.turns.len() as f64).ln()) as usize;
-        // console::log_1(&max_discover_metamoves_depth.into());
+        // let max_discover_metamoves_depth =
+        //     (2_000_000f64.ln() / (puzzle.turns.len() as f64).ln()) as usize;
+        let max_discover_metamoves_depth = 5;
         let turn_num_affected_pieces =
             MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]).num_affected_pieces;
         let metamoves = discover_metamoves(
@@ -44,34 +53,28 @@ impl ScrambleSolver for MetaMoveSolver {
             |mm| mm.num_affected_pieces < turn_num_affected_pieces,
             max_discover_metamoves_depth,
         );
-        // console::time_end_with_label("discover_metamoves");
 
-        // console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
-        // let best = metamoves.iter().min().unwrap();
-        // console::log_1(
-        //     &format!(
-        //         "best metamove: {} turns affecting {} pieces",
-        //         best.turns.len(),
-        //         best.num_affected_pieces
-        //     )
-        //     .into(),
-        // );
+        console_log!("num metamoves: {}", metamoves.len());
+        let best = metamoves.iter().min().unwrap();
+        console_log!(
+            "best metamove: {} turns affecting {} pieces",
+            best.turns.len(),
+            best.num_affected_pieces
+        );
 
-        // console::time_with_label("combine metamoves");
         let metamoves: Vec<_> = combine_metamoves(Rc::clone(&puzzle), |_mm| true, &metamoves, 2);
-        // console::time_end_with_label("combine metamoves");
-        // console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
-        // let best = metamoves.iter().min().unwrap();
-        // console::log_1(
-        //     &format!(
-        //         "best metamove: {} turns affecting {} pieces",
-        //         best.turns.len(),
-        //         best.num_affected_pieces
-        //     )
-        //     .into(),
-        // );
+        console_log!("num metamoves: {}", metamoves.len());
+        let best = metamoves.iter().min().unwrap();
+        console_log!(
+            "best metamove: {} turns affecting {} pieces",
+            best.turns.len(),
+            best.num_affected_pieces
+        );
 
-        // console::time_with_label("repeat metamoves");
+        console_log!("1 all mm {}", metamoves.len());
+        let metamoves = cancel_duplicates(metamoves);
+        console_log!("1 reduced mm {}", metamoves.len());
+
         let metamoves: Vec<_> = metamoves
             .into_iter()
             .flat_map(|mm| {
@@ -82,93 +85,26 @@ impl ScrambleSolver for MetaMoveSolver {
             .filter(|mm| mm.num_affected_pieces <= 3)
             .collect();
 
-        // console::log_1(&format!("all mm {}", metamoves.len()).into());
+        console_log!("all mm {}", metamoves.len());
 
-        let mut metamoves_reduced = HashMap::new();
+        let mut metamoves = cancel_duplicates(metamoves);
 
-        for mm in metamoves {
-            let entry = metamoves_reduced.entry(mm.face_map.clone());
+        console_log!("reduced mm {}", metamoves.len());
 
-            match entry {
-                Entry::Vacant(entry) => {
-                    entry.insert(mm);
-                }
-                Entry::Occupied(mut entry) => {
-                    if entry.get().turns.len() > mm.turns.len() {
-                        // console::log_1(
-                        //     &format!("replacing {:#?} with {:#?}", entry.get(), mm).into(),
-                        // );
-                        entry.insert(mm);
-                    }
-                }
-            }
-        }
+        console_log!("num metamoves: {}", metamoves.len());
+        let best = metamoves.iter().min().unwrap();
+        console_log!(
+            "best metamove: {} turns affecting {} pieces",
+            best.turns.len(),
+            best.num_affected_pieces
+        );
 
-        // console::log_1(&format!("reduced mm {}", metamoves_reduced.len()).into());
-
-        let metamoves: Vec<_> = metamoves_reduced.into_values().collect();
-
-        // console::time_end_with_label("repeat metamoves");
-
-        // console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
-        // let best = metamoves.iter().min().unwrap();
-        // console::log_1(
-        //     &format!(
-        //         "best metamove: {} turns affecting {} pieces",
-        //         best.turns.len(),
-        //         best.num_affected_pieces
-        //     )
-        //     .into(),
-        // );
-
-        // console::time_with_label("combine metamoves");
-        // let metamoves: Vec<_> = combine_metamoves(Rc::clone(&puzzle), |_mm| true, &metamoves, 3);
-        // console::time_end_with_label("combine metamoves");
-        // console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
-        // let best = metamoves.iter().min().unwrap();
-        // console::log_1(
-        //     &format!(
-        //         "best metamove: {} turns affecting {} pieces",
-        //         best.turns.len(),
-        //         best.num_affected_pieces
-        //     )
-        //     .into(),
-        // );
-
-        // console::time_with_label("repeat metamoves");
-        // let metamoves: Vec<_> = metamoves
-        //     .into_iter()
-        //     .flat_map(|mm| {
-        //         mm.discover_repeat_metamoves()
-        //             .into_iter()
-        //             .chain(std::iter::once(mm))
-        //     })
-        //     .collect();
-        // console::time_end_with_label("repeat metamoves");
-
-        // console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
-        // let best = metamoves.iter().min().unwrap();
-        // console::log_1(
-        //     &format!(
-        //         "best metamove: {} turns affecting {} pieces",
-        //         best.turns.len(),
-        //         best.num_affected_pieces
-        //     )
-        //     .into(),
-        // );
-
-        // console::time_with_label("filter metamoves");
-        let mut metamoves: Vec<_> = metamoves
-            .into_iter()
-            .filter(|mm| mm.num_affected_pieces <= 3)
-            .collect();
-        // console::time_end_with_label("filter metamoves");
-        // console::log_1(&format!("num metamoves: {}", metamoves.len()).into());
         metamoves.sort();
 
         if metamoves.is_empty() {
             throw_str("no metamoves");
         }
+        console_log!("done scanning");
 
         Self {
             // depth: (500_000f64.ln() / (metamoves.len() as f64).ln()) as usize,
@@ -267,7 +203,7 @@ impl Iterator for MetaMoveSolver {
         //     best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
         // }
 
-        // console::log_1(&format!("applying metamoves {} turns", best_metamove.turns.len()).into());
+        // console_log!("applying metamoves {} turns", best_metamove.turns.len());
         let &first_turn = best_metamove.turns.get(0)?;
         self.state = self
             .puzzle
@@ -316,6 +252,26 @@ fn find_best_metamove(
     );
 
     best_metamove
+}
+
+fn cancel_duplicates(metamoves: Vec<MetaMove>) -> Vec<MetaMove> {
+    let mut metamoves_reduced = HashMap::new();
+    for mm in metamoves {
+        let entry = metamoves_reduced.entry(mm.face_map.clone());
+
+        match entry {
+            Entry::Vacant(entry) => {
+                entry.insert(mm);
+            }
+            Entry::Occupied(mut entry) => {
+                if entry.get().turns.len() > mm.turns.len() {
+                    entry.insert(mm);
+                }
+            }
+        }
+    }
+
+    metamoves_reduced.into_values().collect()
 }
 
 #[cfg(test)]
