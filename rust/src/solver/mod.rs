@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
+mod bijection_trie;
 mod full_search_solve;
 mod lookahead;
 mod metamove_solver;
