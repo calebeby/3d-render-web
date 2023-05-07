@@ -89,6 +89,31 @@ pub fn rubiks_cube_3x3() -> TwistyPuzzle {
 }
 
 #[allow(dead_code)]
+pub fn rubiks_cube_4x4() -> TwistyPuzzle {
+    let cube = cube();
+    TwistyPuzzle::new(
+        &cube,
+        &cube
+            .faces
+            .iter()
+            .enumerate()
+            .map(|(i, face)| {
+                CutDefinition::new(
+                    RUBIKS_CUBE_CUT_NAMES[i],
+                    face.plane().offset(-0.25),
+                    TAU / 4.0,
+                )
+            })
+            .chain(
+                cube.faces[0..=2].iter().map(|face| {
+                    CutDefinition::new_infer_name(face.plane().offset(-0.5), TAU / 4.0)
+                }),
+            )
+            .collect::<Vec<_>>(),
+    )
+}
+
+#[allow(dead_code)]
 pub fn rubiks_cube_2x2() -> TwistyPuzzle {
     let cube = cube();
     TwistyPuzzle::new(
