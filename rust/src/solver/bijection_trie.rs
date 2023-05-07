@@ -130,13 +130,6 @@ impl<T: std::fmt::Debug> BijectionTrie<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, rc::Rc};
-
-    use crate::{
-        puzzles,
-        solver::metamoves::{discover_metamoves, MetaMove},
-    };
-
     use super::*;
 
     #[test]
@@ -162,105 +155,48 @@ mod tests {
     }
     #[test]
     fn test_find_most_similar() {
-        // let mut trie = BijectionTrie::new();
-        // trie.insert(&Bijection(vec![1, 2, 3]), "123");
-        // trie.insert(&Bijection(vec![1, 2, 4]), "124");
-        // trie.insert(&Bijection(vec![2, 9, 1]), "291");
-        // trie.insert(&Bijection(vec![2, 2, 3]), "223");
-        // trie.insert(&Bijection(vec![2, 2, 4]), "224");
+        let mut trie = BijectionTrie::new();
+        trie.insert(&Bijection(vec![1, 2, 3]), "123");
+        trie.insert(&Bijection(vec![1, 2, 4]), "124");
+        trie.insert(&Bijection(vec![2, 9, 1]), "291");
+        trie.insert(&Bijection(vec![2, 2, 3]), "223");
+        trie.insert(&Bijection(vec![2, 2, 4]), "224");
 
-        // assert_eq!(
-        //     trie.find_most_similar(&Bijection(vec![1, 2, 3]))
-        //         .collect::<Vec<_>>(),
-        //     vec![
-        //         (0, &"123"),
-        //         (1, &"124"),
-        //         (1, &"223"),
-        //         (2, &"224"),
-        //         (3, &"291")
-        //     ],
-        // );
+        assert_eq!(
+            trie.find_most_similar(&Bijection(vec![1, 2, 3]))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, &"123"),
+                (1, &"124"),
+                (1, &"223"),
+                (2, &"224"),
+                (3, &"291")
+            ],
+        );
 
-        // assert_eq!(
-        //     trie.find_most_similar(&Bijection(vec![1, 2, 4]))
-        //         .collect::<Vec<_>>(),
-        //     vec![
-        //         (0, &"124"),
-        //         (1, &"123"),
-        //         (1, &"224"),
-        //         (2, &"223"),
-        //         (3, &"291")
-        //     ],
-        // );
+        assert_eq!(
+            trie.find_most_similar(&Bijection(vec![1, 2, 4]))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, &"124"),
+                (1, &"123"),
+                (1, &"224"),
+                (2, &"223"),
+                (3, &"291")
+            ],
+        );
 
-        // // 5's do not appear
-        // assert_eq!(
-        //     trie.find_most_similar(&Bijection(vec![5, 5, 5]))
-        //         .collect::<Vec<_>>(),
-        //     vec![
-        //         (3, &"123"),
-        //         (3, &"291"),
-        //         (3, &"224"),
-        //         (3, &"124"),
-        //         (3, &"223")
-        //     ],
-        // );
-
-        let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
-
-        println!("discover");
-        // let mut mms = discover_metamoves(Rc::clone(&puzzle), |mm| mm.num_affected_pieces <= 17, 4);
-        let mut mms = discover_metamoves(Rc::clone(&puzzle), |_mm| true, 4);
-        println!("/discover");
-
-        for i in 0..2 {
-            println!("Phase {i} ---------------------------------");
-            let mut trie = BijectionTrie::new();
-            println!("insert");
-            for mm in &mms {
-                trie.insert(&mm.face_map, mm);
-            }
-            println!("/insert");
-            let mut combined: Vec<MetaMove> = vec![];
-            let mut max_affected_pieces = usize::MAX;
-            let mms2: Vec<_> = mms
-                .iter()
-                .filter(|mm| mm.num_affected_pieces <= 7)
-                .enumerate()
-                .collect();
-            for (n, first) in &mms2 {
-                println!("{n}/{} first {:?}", mms2.len(), first);
-                combined.extend(
-                    trie.find_most_similar(&first.face_map)
-                        .filter(|(d, _)| *d != 0)
-                        .map(|(_d, similar_metamove)| first.apply(&similar_metamove.invert()))
-                        .take_while(|mm| {
-                            if mm.num_affected_pieces > max_affected_pieces {
-                                false
-                            } else {
-                                max_affected_pieces = mm.num_affected_pieces;
-                                true
-                            }
-                        }),
-                );
-            }
-            combined = combined
-                .into_iter()
-                .filter(|mm| mm.num_affected_pieces <= max_affected_pieces)
-                .map(|mm| (mm.face_map.clone(), mm))
-                .collect::<HashMap<_, _>>()
-                .into_values()
-                .collect();
-            for mm in &combined {
-                println!("mm: {:?}", mm);
-            }
-            mms = combined;
-        }
-        // let v: Vec<_> = trie.find_most_similar(&first.face_map).collect();
-        // let mut max_diff = 0;
-        // for (difference, _) in v {
-        //     assert!(difference >= max_diff, "{difference} < {max_diff}!");
-        //     max_diff = difference;
-        // }
+        // 5's do not appear
+        assert_eq!(
+            trie.find_most_similar(&Bijection(vec![5, 5, 5]))
+                .collect::<Vec<_>>(),
+            vec![
+                (3, &"123"),
+                (3, &"291"),
+                (3, &"224"),
+                (3, &"124"),
+                (3, &"223")
+            ],
+        );
     }
 }

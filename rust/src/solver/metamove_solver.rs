@@ -160,7 +160,7 @@ impl Iterator for MetaMoveSolver {
                     depth,
                     MetaMove::empty(Rc::clone(&self.puzzle)),
                     // TODO: combining the empty metamove with another takes time, would it be faster to skip it somehow?
-                    &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
+                    |previous_metamove: &MetaMove, new_metamove: &MetaMove| {
                         previous_metamove.apply(new_metamove)
                     },
                     &mut |mm| {
