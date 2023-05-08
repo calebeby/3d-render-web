@@ -72,6 +72,12 @@ pub struct TwistyPuzzle {
     pieces: Vec<Vec<usize>>,
     // Map from face map to symmetry objects
     pub symmetries: HashMap<Bijection, Symmetry>,
+    pub face_piece_types: Vec<FacePieceTypeMask>,
+}
+
+#[derive(Debug)]
+pub struct FacePieceTypeMask {
+    faces: Vec<bool>,
 }
 
 pub struct Symmetry {
@@ -410,12 +416,68 @@ impl TwistyPuzzle {
             assert_eq!(deduped.len(), symmetries.len())
         }
 
+        // Start each face as the face type corresponding to its piece
+
+        // The faces corresponding to each piece type
+        let mut piece_type_faces: Vec<Vec<usize>> = pieces.to_vec();
+        // The type of each face
+        let mut face_piece_types: HashMap<usize, usize> = faces
+            .iter()
+            .enumerate()
+            .map(|(face_index, _face)| {
+                let piece_index = pieces
+                    .iter()
+                    .position(|piece_face_indices| piece_face_indices.contains(&face_index))
+                    .unwrap();
+                (face_index, piece_index)
+            })
+            .collect();
+        // Try out all the turns, and as we do so,
+        // start grouping the faces together by the ones that are "compatible" with each other
+        // Think "corner pieces", "edge pieces", "center pieces" etc.
+
+        for turn in &turns {
+            for (face_index, _face) in faces.iter().enumerate() {
+                let new_face_index = turn.face_map.0[face_index];
+                let old_piece_type = *face_piece_types.get(&face_index).unwrap();
+                let new_piece_type = *face_piece_types.get(&new_face_index).unwrap();
+                // If they are different piece types, need to merge them into the same type
+                // (since there exists a turn that maps them to each other)
+                if old_piece_type != new_piece_type {
+                    let target_piece_type = usize::min(old_piece_type, new_piece_type);
+                    let obselete_piece_type = usize::max(old_piece_type, new_piece_type);
+                    let faces_of_obsolete_piece_type =
+                        std::mem::take(piece_type_faces.get_mut(obselete_piece_type).unwrap());
+                    for &face_index in &faces_of_obsolete_piece_type {
+                        face_piece_types.insert(face_index, target_piece_type);
+                    }
+                    piece_type_faces[target_piece_type]
+                        .extend_from_slice(&faces_of_obsolete_piece_type);
+                }
+            }
+        }
+
+        let face_piece_types = piece_type_faces
+            .into_iter()
+            .filter_map(|face_indices| {
+                if face_indices.is_empty() {
+                    return None;
+                }
+                let mut faces = vec![false; faces.len()];
+                for face_index in face_indices {
+                    faces[face_index] = true;
+                }
+                Some(FacePieceTypeMask { faces })
+            })
+            .collect();
+
         Self {
             faces,
             turns,
             turn_names,
             pieces,
             symmetries,
+            face_piece_types,
         }
     }
 
@@ -853,5 +915,54 @@ mod tests {
     fn test_symmetric_moves_master_pentultimate() {
         let puzzle = puzzles::master_pentultimate();
         assert_eq!(puzzle.symmetries.len(), 120);
+    }
+
+    #[test]
+    fn test_piece_types() {
+        fn count_piece_types_with_n_faces(puzzle: &TwistyPuzzle, n: usize) -> usize {
+            puzzle
+                .face_piece_types
+                .iter()
+                .filter(|face_piece_type_mask| {
+                    face_piece_type_mask.faces.iter().filter(|f| **f).count() == n
+                })
+                .count()
+        }
+
+        ////////////////////// Rubik's Cube 3x3x3 /////////////////////////////
+        let puzzle = puzzles::rubiks_cube_3x3();
+        // 6 distinct center pieces (no turns to make them the same category)
+        // + corner set
+        // + edge set
+        assert_eq!(puzzle.face_piece_types.len(), 8);
+        // The edge set and corner set each have 4*6 faces
+        assert_eq!(count_piece_types_with_n_faces(&puzzle, 24), 2);
+        // Each center is its own piece type with 1 face
+        assert_eq!(count_piece_types_with_n_faces(&puzzle, 1), 6);
+
+        ////////////////////// Megaminx /////////////////////////////
+        let puzzle = puzzles::megaminx();
+        // 12 distinct center pieces (no turns to make them the same category)
+        // + corner set
+        // + edge set
+        assert_eq!(puzzle.face_piece_types.len(), 14);
+        // The edge set and corner set each have 5*12 faces
+        assert_eq!(count_piece_types_with_n_faces(&puzzle, 60), 2);
+        // Each center is its own piece type with 1 face
+        assert_eq!(count_piece_types_with_n_faces(&puzzle, 1), 12);
+
+        ////////////////////// Skewb /////////////////////////////
+        let puzzle = puzzles::skewb();
+        // 1 center set and 2 distinct corner sets
+        // That's what it should be, but with how this puzzle is set up,
+        // there is one center piece that never moves, so it gets its own set.
+        // So 2 center sets and 2 distinct corner sets
+        assert_eq!(puzzle.face_piece_types.len(), 4);
+        // The "moving center" set has 5 faces
+        assert_eq!(count_piece_types_with_n_faces(&puzzle, 5), 1);
+        // The "nonmoving center" set has 1 face
+        assert_eq!(count_piece_types_with_n_faces(&puzzle, 1), 1);
+        // Each corner set has 3*4 faces
+        assert_eq!(count_piece_types_with_n_faces(&puzzle, 12), 2);
     }
 }
