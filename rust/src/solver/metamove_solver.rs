@@ -286,11 +286,15 @@ mod tests {
     fn solve_rubiks_3x3() {
         let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
 
-        let mut rng = ChaCha8Rng::seed_from_u64(1005);
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
 
         let mut sum = 0;
         let mut num_solves = 0;
-        let num_scrambles = 20;
+        let num_scrambles = 50;
+        // Baseline: 30/50, took 1m 57s to run:
+        //
+        // 3x3 solution length: 260 turns
+        // avg 3x3 solution length: 384.6 turns, (30 / 50)
         for _ in 0..num_scrambles {
             let scrambled_state = puzzle.scramble(&puzzle.get_initial_state(), 20, &mut rng);
             let solution: Vec<_> =
