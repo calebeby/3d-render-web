@@ -72,7 +72,7 @@ impl ScrambleSolver for MetaMoveSolver {
         );
 
         console_log!("1 all mm {}", metamoves.len());
-        let metamoves = cancel_duplicates(metamoves);
+        let metamoves = filter_duplicates(metamoves);
         console_log!("1 reduced mm {}", metamoves.len());
 
         let metamoves: Vec<_> = metamoves
@@ -87,7 +87,7 @@ impl ScrambleSolver for MetaMoveSolver {
 
         console_log!("all mm {}", metamoves.len());
 
-        let mut metamoves = cancel_duplicates(metamoves);
+        let mut metamoves = filter_duplicates(metamoves);
 
         console_log!("reduced mm {}", metamoves.len());
 
@@ -178,7 +178,7 @@ impl Iterator for MetaMoveSolver {
                 );
 
                 if best_metamove.num_affected_pieces != 0 {
-                    let &first_turn = best_metamove.turns.get(0)?;
+                    let &first_turn = best_metamove.turns.first()?;
                     self.state = self
                         .puzzle
                         .get_derived_state_turn_index(&self.state, first_turn);
@@ -204,7 +204,7 @@ impl Iterator for MetaMoveSolver {
         // }
 
         // console_log!("applying metamoves {} turns", best_metamove.turns.len());
-        let &first_turn = best_metamove.turns.get(0)?;
+        let &first_turn = best_metamove.turns.first()?;
         self.state = self
             .puzzle
             .get_derived_state_turn_index(&self.state, first_turn);
@@ -232,7 +232,7 @@ fn find_best_metamove(
         depth,
         MetaMove::empty(Rc::clone(&puzzle)),
         // TODO: combining the empty metamove with another takes time, would it be faster to skip it somehow?
-        &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
+        |previous_metamove: &MetaMove, new_metamove: &MetaMove| {
             previous_metamove.apply(new_metamove)
         },
         &mut |mm| {
@@ -254,7 +254,7 @@ fn find_best_metamove(
     best_metamove
 }
 
-fn cancel_duplicates(metamoves: Vec<MetaMove>) -> Vec<MetaMove> {
+fn filter_duplicates(metamoves: Vec<MetaMove>) -> Vec<MetaMove> {
     let mut metamoves_reduced = HashMap::new();
     for mm in metamoves {
         let entry = metamoves_reduced.entry(mm.face_map.clone());

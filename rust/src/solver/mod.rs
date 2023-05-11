@@ -4,11 +4,13 @@ use crate::twisty_puzzle::{PuzzleState, TwistyPuzzle};
 mod bijection_trie;
 mod full_search_solve;
 mod lookahead;
+mod metamove_phased_solver;
 mod metamove_solver;
 mod metamoves;
 mod simple_one_move;
 pub use full_search_solve::{FullSearchSolver, FullSearchSolverOpts};
 pub use lookahead::{LookaheadSolver, LookaheadSolverOpts};
+pub use metamove_phased_solver::MetaMovePhasedSolver;
 pub use metamove_solver::MetaMoveSolver;
 pub use simple_one_move::OneMoveSolver;
 

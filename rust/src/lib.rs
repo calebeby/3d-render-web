@@ -18,7 +18,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::plane::Plane;
-use crate::solver::{MetaMoveSolver, ScrambleSolver, Solver};
+use crate::solver::{MetaMovePhasedSolver, MetaMoveSolver, ScrambleSolver, Solver};
 use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
 use polyhedron::Face;
@@ -91,6 +91,7 @@ struct State<T: ScrambleSolver> {
 
 #[wasm_bindgen]
 pub fn start() {
+    console_error_panic_hook::set_once();
     let result = init();
     if let Err(err) = result {
         console::error_1(&err);
@@ -123,7 +124,7 @@ fn init() -> Result<(), JsValue> {
 
     let puzzle = Rc::new(puzzles::rubiks_cube_3x3());
 
-    type S = MetaMoveSolver;
+    type S = MetaMovePhasedSolver;
     let puzzle_state = puzzle.get_initial_state();
     let solver_opts: <S as ScrambleSolver>::Opts = ();
 
@@ -376,7 +377,7 @@ fn init() -> Result<(), JsValue> {
                         solve_next_step(&mut state);
                     }
                 } else {
-                    state.turn_progress = f64::min(state.turn_progress + 0.11, 1.0);
+                    state.turn_progress = f64::min(state.turn_progress + 0.2, 1.0);
                 }
             }
             if !unsafe { CURSOR_DOWN } {
@@ -387,7 +388,7 @@ fn init() -> Result<(), JsValue> {
         let time_listener = Closure::wrap(Box::new(rerender) as Box<dyn FnMut()>);
         window.set_interval_with_callback_and_timeout_and_arguments_0(
             time_listener.as_ref().unchecked_ref(),
-            10,
+            5,
         )?;
         time_listener.forget();
     }

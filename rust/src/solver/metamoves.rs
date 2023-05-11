@@ -140,8 +140,7 @@ impl MetaMove {
                         .take(times_to_repeat)
                         .flatten()
                         .collect();
-                    let mut face_map_vec: Vec<usize> =
-                        (0..self.face_map.0.len()).into_iter().collect();
+                    let mut face_map_vec: Vec<usize> = (0..self.face_map.0.len()).collect();
                     for cycle in &cycles {
                         // If cycle cancels out; ignore it
                         if (times_to_repeat % cycle.len()) == 0 {
@@ -322,7 +321,7 @@ where
         // We'll start out with a single known turn,
         // and then copy the metamoves all over the puzzle at the end.
         MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]),
-        &|previous_metamove: &MetaMove, (turn_index, turn): &(usize, &Turn)| {
+        |previous_metamove: &MetaMove, (turn_index, turn): &(usize, &Turn)| {
             let face_map = previous_metamove.face_map.apply(&turn.face_map);
 
             let new_turns = previous_metamove
@@ -388,7 +387,7 @@ where
         metamoves,
         depth,
         MetaMove::empty(puzzle),
-        &|previous_metamove: &MetaMove, new_metamove: &MetaMove| {
+        |previous_metamove: &MetaMove, new_metamove: &MetaMove| {
             previous_metamove.apply(new_metamove)
         },
         &mut |mm| {

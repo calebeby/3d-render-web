@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-#[cfg(test)]
-use std::collections::HashSet;
 use std::f64::consts::TAU;
 
 use crate::bijection::Bijection;
@@ -72,12 +70,12 @@ pub struct TwistyPuzzle {
     pieces: Vec<Vec<usize>>,
     // Map from face map to symmetry objects
     pub symmetries: HashMap<Bijection, Symmetry>,
-    pub face_piece_types: Vec<FacePieceTypeMask>,
+    pub piece_types: Vec<PieceType>,
 }
 
 #[derive(Debug)]
-pub struct FacePieceTypeMask {
-    faces: Vec<bool>,
+pub struct PieceType {
+    face_mask: Vec<bool>,
 }
 
 pub struct Symmetry {
@@ -411,6 +409,7 @@ impl TwistyPuzzle {
 
         #[cfg(test)]
         {
+            use std::collections::HashSet;
             let deduped: HashSet<Bijection> =
                 HashSet::from_iter(symmetries.values().map(|s| s.face_map.clone()));
             assert_eq!(deduped.len(), symmetries.len())
@@ -467,7 +466,7 @@ impl TwistyPuzzle {
                 for face_index in face_indices {
                     faces[face_index] = true;
                 }
-                Some(FacePieceTypeMask { faces })
+                Some(PieceType { face_mask: faces })
             })
             .collect();
 
@@ -477,7 +476,7 @@ impl TwistyPuzzle {
             turn_names,
             pieces,
             symmetries,
-            face_piece_types,
+            piece_types: face_piece_types,
         }
     }
 
@@ -504,25 +503,47 @@ impl TwistyPuzzle {
         self.pieces.len()
     }
 
-    pub fn get_num_solved_pieces(&self, puzzle_state: &PuzzleState) -> usize {
+    pub fn get_num_pieces_of_type(&self, piece_type: &PieceType) -> usize {
+        self.pieces
+            .iter()
+            .filter(|piece_faces| {
+                piece_faces
+                    .iter()
+                    .all(|face_index| piece_type.face_mask[*face_index])
+            })
+            .count()
+    }
+
+    pub fn get_num_solved_pieces_of_type(
+        &self,
+        puzzle_state: &PuzzleState,
+        piece_type: &PieceType,
+    ) -> usize {
         let faces_solved_states: Vec<bool> = puzzle_state
             .iter()
             .enumerate()
-            .map(|(i, color_index)| *color_index == self.faces[i].color_index)
+            .map(|(i, color_index)| {
+                piece_type.face_mask[i] && *color_index == self.faces[i].color_index
+            })
             .collect();
 
         self.pieces
             .iter()
-            .fold(0, |num_solved_pieces, piece_faces| {
-                let every_face_solved = piece_faces
+            .filter(|piece_faces| {
+                piece_faces
                     .iter()
-                    .all(|face_index| faces_solved_states[*face_index]);
-                if every_face_solved {
-                    num_solved_pieces + 1
-                } else {
-                    num_solved_pieces
-                }
+                    .all(|face_index| faces_solved_states[*face_index])
             })
+            .count()
+    }
+
+    pub fn get_num_solved_pieces(&self, puzzle_state: &PuzzleState) -> usize {
+        self.get_num_solved_pieces_of_type(
+            puzzle_state,
+            &PieceType {
+                face_mask: vec![true; self.faces.len()],
+            },
+        )
     }
 
     pub fn faces(&self, puzzle_state: &PuzzleState) -> Vec<PieceFace> {
@@ -921,11 +942,9 @@ mod tests {
     fn test_piece_types() {
         fn count_piece_types_with_n_faces(puzzle: &TwistyPuzzle, n: usize) -> usize {
             puzzle
-                .face_piece_types
+                .piece_types
                 .iter()
-                .filter(|face_piece_type_mask| {
-                    face_piece_type_mask.faces.iter().filter(|f| **f).count() == n
-                })
+                .filter(|piece_type| piece_type.face_mask.iter().filter(|f| **f).count() == n)
                 .count()
         }
 
@@ -934,7 +953,7 @@ mod tests {
         // 6 distinct center pieces (no turns to make them the same category)
         // + corner set
         // + edge set
-        assert_eq!(puzzle.face_piece_types.len(), 8);
+        assert_eq!(puzzle.piece_types.len(), 8);
         // The edge set and corner set each have 4*6 faces
         assert_eq!(count_piece_types_with_n_faces(&puzzle, 24), 2);
         // Each center is its own piece type with 1 face
@@ -945,7 +964,7 @@ mod tests {
         // 12 distinct center pieces (no turns to make them the same category)
         // + corner set
         // + edge set
-        assert_eq!(puzzle.face_piece_types.len(), 14);
+        assert_eq!(puzzle.piece_types.len(), 14);
         // The edge set and corner set each have 5*12 faces
         assert_eq!(count_piece_types_with_n_faces(&puzzle, 60), 2);
         // Each center is its own piece type with 1 face
@@ -957,7 +976,7 @@ mod tests {
         // That's what it should be, but with how this puzzle is set up,
         // there is one center piece that never moves, so it gets its own set.
         // So 2 center sets and 2 distinct corner sets
-        assert_eq!(puzzle.face_piece_types.len(), 4);
+        assert_eq!(puzzle.piece_types.len(), 4);
         // The "moving center" set has 5 faces
         assert_eq!(count_piece_types_with_n_faces(&puzzle, 5), 1);
         // The "nonmoving center" set has 1 face
