@@ -11,18 +11,26 @@ struct TrieNode<T> {
 #[derive(Debug)]
 pub struct BijectionTrie<T> {
     root: TrieNode<T>,
+    len: usize,
 }
 
-impl<T: std::fmt::Debug> BijectionTrie<T> {
-    fn new() -> BijectionTrie<T> {
+impl<T: std::fmt::Debug + std::cmp::Ord> BijectionTrie<T> {
+    #[inline]
+    pub fn new() -> BijectionTrie<T> {
         BijectionTrie {
             root: TrieNode {
                 children: vec![],
                 data: None,
             },
+            len: 0,
         }
     }
-    fn insert(&mut self, bijection: &Bijection, data: T) {
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn insert(&mut self, bijection: &Bijection, data: T) {
+        self.len += 1;
         let mut node = &mut self.root;
         for mapping in &bijection.0 {
             let found_child_index = node
@@ -42,7 +50,7 @@ impl<T: std::fmt::Debug> BijectionTrie<T> {
         }
         node.data = Some(data);
     }
-    fn find_exact_bijection(&self, bijection: &Bijection) -> Option<&T> {
+    pub fn find_exact_bijection(&self, bijection: &Bijection) -> Option<&T> {
         let mut node = &self.root;
         for mapping in &bijection.0 {
             let found_child = node
@@ -57,40 +65,46 @@ impl<T: std::fmt::Debug> BijectionTrie<T> {
         }
         node.data.as_ref()
     }
-    fn find_most_similar(&self, search_bijection: &Bijection) -> impl Iterator<Item = (usize, &T)> {
+    pub fn find_most_similar(
+        &self,
+        search_bijection: &Bijection,
+    ) -> impl Iterator<Item = (usize, &T)> {
         #[derive(Debug)]
-        struct HeapItem<'a, T> {
+        struct HeapItem<'a, T: std::cmp::Eq> {
             node: &'a TrieNode<T>,
             differences: usize,
             index: usize,
         }
 
-        impl<'a, T> Ord for HeapItem<'a, T> {
+        impl<'a, T: std::cmp::Ord> Ord for HeapItem<'a, T> {
             fn cmp(&self, other: &Self) -> Ordering {
                 // Reverse because we want to see minimum-difference items first
-                self.differences.cmp(&other.differences).reverse()
+                self.differences
+                    .cmp(&other.differences)
+                    .reverse()
+                    .then(self.node.data.cmp(&other.node.data))
             }
         }
 
-        impl<'a, T> PartialOrd for HeapItem<'a, T> {
+        impl<'a, T: std::cmp::Ord> PartialOrd for HeapItem<'a, T> {
             fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
                 Some(self.cmp(other))
             }
         }
 
-        impl<'a, T> PartialEq for HeapItem<'a, T> {
+        impl<'a, T: std::cmp::Ord> PartialEq for HeapItem<'a, T> {
             fn eq(&self, other: &Self) -> bool {
-                self.differences == other.differences
+                self.node.data == other.node.data
             }
         }
 
-        impl<'a, T> Eq for HeapItem<'a, T> {}
+        impl<'a, T: std::cmp::Ord> Eq for HeapItem<'a, T> {}
 
-        struct SimilarityIterator<'a, T> {
+        struct SimilarityIterator<'a, T: std::cmp::Ord> {
             heap: BinaryHeap<HeapItem<'a, T>>,
             search_bijection: Bijection,
         }
-        impl<'a, T: std::fmt::Debug> Iterator for SimilarityIterator<'a, T> {
+        impl<'a, T: std::fmt::Debug + std::cmp::Ord> Iterator for SimilarityIterator<'a, T> {
             type Item = (usize, &'a T);
             fn next(&mut self) -> Option<Self::Item> {
                 loop {

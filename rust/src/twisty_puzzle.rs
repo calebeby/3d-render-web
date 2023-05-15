@@ -73,9 +73,15 @@ pub struct TwistyPuzzle {
     pub piece_types: Vec<PieceType>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PieceType {
     face_mask: Vec<bool>,
+}
+impl PieceType {
+    #[inline]
+    pub fn face_mask(&self) -> &[bool] {
+        &self.face_mask
+    }
 }
 
 pub struct Symmetry {
@@ -456,7 +462,7 @@ impl TwistyPuzzle {
             }
         }
 
-        let face_piece_types = piece_type_faces
+        let mut face_piece_types: Vec<PieceType> = piece_type_faces
             .into_iter()
             .filter_map(|face_indices| {
                 if face_indices.is_empty() {
@@ -469,6 +475,8 @@ impl TwistyPuzzle {
                 Some(PieceType { face_mask: faces })
             })
             .collect();
+        // Force deterministic sorting
+        face_piece_types.sort_by(|a, b| a.face_mask().cmp(b.face_mask()).reverse());
 
         Self {
             faces,
@@ -509,7 +517,7 @@ impl TwistyPuzzle {
             .filter(|piece_faces| {
                 piece_faces
                     .iter()
-                    .all(|face_index| piece_type.face_mask[*face_index])
+                    .all(|&face_index| piece_type.face_mask[face_index])
             })
             .count()
     }
@@ -522,8 +530,8 @@ impl TwistyPuzzle {
         let faces_solved_states: Vec<bool> = puzzle_state
             .iter()
             .enumerate()
-            .map(|(i, color_index)| {
-                piece_type.face_mask[i] && *color_index == self.faces[i].color_index
+            .map(|(i, &color_index)| {
+                piece_type.face_mask[i] && color_index == self.faces[i].color_index
             })
             .collect();
 
@@ -532,7 +540,7 @@ impl TwistyPuzzle {
             .filter(|piece_faces| {
                 piece_faces
                     .iter()
-                    .all(|face_index| faces_solved_states[*face_index])
+                    .all(|&face_index| faces_solved_states[face_index])
             })
             .count()
     }
@@ -544,6 +552,16 @@ impl TwistyPuzzle {
                 face_mask: vec![true; self.faces.len()],
             },
         )
+    }
+
+    // TODO: implement
+
+    pub fn get_num_unoriented_pieces_of_type(
+        &self,
+        puzzle_state: &PuzzleState,
+        piece_type: &PieceType,
+    ) -> usize {
+        todo!()
     }
 
     pub fn faces(&self, puzzle_state: &PuzzleState) -> Vec<PieceFace> {

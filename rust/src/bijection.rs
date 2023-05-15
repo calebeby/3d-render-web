@@ -25,7 +25,7 @@ impl Bijection {
         Bijection(inverted)
     }
     pub fn identity(count: usize) -> Bijection {
-        Bijection((0..count).into_iter().collect())
+        Bijection((0..count).collect())
     }
     pub fn is_inverse_of(&self, other: &Bijection) -> bool {
         for (i, val) in self.0.iter().enumerate() {
@@ -34,6 +34,23 @@ impl Bijection {
             }
         }
         true
+    }
+    pub fn mask(&self, mask: &[bool]) -> Bijection {
+        assert_eq!(mask.len(), self.0.len());
+        Bijection(
+            self.0
+                .iter()
+                .enumerate()
+                .map(|(i, mapping)| {
+                    if mask[i] {
+                        *mapping
+                    } else {
+                        // map to itself (since it is not in the mapping)
+                        i
+                    }
+                })
+                .collect(),
+        )
     }
 }
 

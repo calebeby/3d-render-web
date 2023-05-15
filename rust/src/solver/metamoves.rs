@@ -1,5 +1,5 @@
 use crate::traverse_combinations::{traverse_combinations, TraverseResult};
-use crate::twisty_puzzle::{Symmetry, Turn};
+use crate::twisty_puzzle::{PieceType, Symmetry, Turn};
 use crate::{bijection::Bijection, twisty_puzzle::TwistyPuzzle};
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
@@ -7,6 +7,17 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
+
+macro_rules! console_log {
+    ($($t:tt)*) => {
+        #[cfg(target_arch = "wasm32")] {
+            web_sys::console::log_1(&format!($($t)*).into());
+        }
+        #[cfg(not(target_arch = "wasm32"))] {
+            println!($($t)*);
+        }
+    };
+}
 
 /// A metamove is a set of moves that combines to one large "move"
 /// that ends up (hopefully) moving only a small number of pieces.
@@ -61,6 +72,8 @@ impl MetaMove {
         );
         Self::new(puzzle, turns, face_map)
     }
+    // TODO: don't Rc.clone here, pass in the num faces
+    // also rename to identity
     #[inline]
     pub fn empty(puzzle: Rc<TwistyPuzzle>) -> Self {
         MetaMove {
@@ -180,6 +193,20 @@ impl MetaMove {
             inverted_turns,
             self.face_map.invert(),
         )
+    }
+
+    pub fn get_num_affected_pieces_of_types(&self, piece_types: &[&PieceType]) -> usize {
+        let puzzle = &self.puzzle;
+        let derived_state = puzzle.get_derived_state(&puzzle.get_initial_state(), &self.face_map);
+        let mut num_affected = 0;
+        for piece_type in piece_types {
+            let num_pieces_of_type = puzzle.get_num_pieces_of_type(piece_type);
+            let num_unaffected_pieces_of_type =
+                puzzle.get_num_solved_pieces_of_type(&derived_state, piece_type);
+            let num_affected_pieces_of_type = num_pieces_of_type - num_unaffected_pieces_of_type;
+            num_affected += num_affected_pieces_of_type;
+        }
+        num_affected
     }
 }
 
@@ -334,15 +361,15 @@ where
             MetaMove::new(Rc::clone(&puzzle), new_turns, face_map)
         },
         &mut |metamove| {
-            // Ignore "move sequences" if they are just one move
-            if metamove.turns.len() <= 1 {
+            if metamove.turns.is_empty() {
                 return TraverseResult::Continue;
             }
 
             // Ignore if last move inverts move before; that is useless
-            if puzzle.turns[metamove.turns[metamove.turns.len() - 1]]
-                .face_map
-                .is_inverse_of(&puzzle.turns[metamove.turns[metamove.turns.len() - 2]].face_map)
+            if metamove.turns.len() >= 2
+                && puzzle.turns[metamove.turns[metamove.turns.len() - 1]]
+                    .face_map
+                    .is_inverse_of(&puzzle.turns[metamove.turns[metamove.turns.len() - 2]].face_map)
             {
                 return TraverseResult::Skip;
             }
@@ -369,7 +396,11 @@ where
         },
     );
 
-    best_metamoves.into_values().collect()
+    let mut vec: Vec<_> = best_metamoves.into_values().collect();
+    // Sort so that the order is deterministic
+    // (hashmap -> vec conversion doesn't maintain any order)
+    vec.sort();
+    vec
 }
 
 pub fn combine_metamoves<Filter>(
@@ -616,10 +647,17 @@ mod tests {
             );
         }
 
-        assert_eq!(all_metamoves_2_moves.len(), 27);
+        assert_eq!(
+            all_metamoves_2_moves
+                .iter()
+                .filter(|mm| mm.turns.len() == 2)
+                .count(),
+            27
+        );
 
         assert_debug_snapshot!(all_metamoves_2_moves
             .iter()
+            .filter(|mm| mm.turns.len() == 2)
             .map(|mm| (mm.num_affected_pieces, mm.turns.clone()))
             .collect::<Vec<_>>());
 
@@ -672,12 +710,7 @@ mod tests {
         let mut all_metamoves_3_moves = discover_metamoves(Rc::clone(&puzzle), |_| true, 3);
         all_metamoves_3_moves.sort();
         assert_eq!(all_metamoves_3_moves[0].num_affected_pieces, 8);
-        assert_eq!(all_metamoves_3_moves[0].turns.len(), 2);
-        // Two turns to affect 8 pieces, it is a double-turn on a single face
-        assert_eq!(
-            all_metamoves_3_moves[0].turns[0],
-            all_metamoves_3_moves[0].turns[1]
-        );
+        assert_eq!(all_metamoves_3_moves[0].turns.len(), 1);
         assert_eq!(
             all_metamoves_3_moves
                 .iter()

@@ -19,6 +19,7 @@ pub fn traverse_combinations<Item, Combined, Combiner, Cb>(
     Combiner: Fn(&Combined, &Item) -> Combined,
     Cb: FnMut(&Combined) -> TraverseResult,
 {
+    cb(&initial_combined);
     let mut fringe_stack: Vec<StateToExpand<Combined>> = vec![StateToExpand {
         item_index: 0,
         combined_previous: initial_combined,
@@ -71,7 +72,7 @@ mod tests {
             &['a', 'b', 'c'],
             2,
             String::new(),
-            &|str: &String, char: &char| {
+            |str: &String, char: &char| {
                 let mut s2 = str.clone();
                 s2.push(*char);
                 s2
@@ -84,6 +85,7 @@ mod tests {
 
         assert_debug_snapshot!(calls, @r###"
         [
+            "",
             "a",
             "aa",
             "ab",
@@ -107,7 +109,7 @@ mod tests {
             &['a', 'b', 'c'],
             2,
             String::new(),
-            &|str: &String, char: &char| {
+            |str: &String, char: &char| {
                 let mut s2 = str.clone();
                 s2.push(*char);
                 s2
@@ -124,6 +126,7 @@ mod tests {
 
         assert_debug_snapshot!(calls, @r###"
         [
+            "",
             "a",
             "b",
             "ba",

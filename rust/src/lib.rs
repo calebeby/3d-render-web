@@ -377,7 +377,7 @@ fn init() -> Result<(), JsValue> {
                         solve_next_step(&mut state);
                     }
                 } else {
-                    state.turn_progress = f64::min(state.turn_progress + 0.2, 1.0);
+                    state.turn_progress = f64::min(state.turn_progress + 0.15, 1.0);
                 }
             }
             if !unsafe { CURSOR_DOWN } {
@@ -388,7 +388,7 @@ fn init() -> Result<(), JsValue> {
         let time_listener = Closure::wrap(Box::new(rerender) as Box<dyn FnMut()>);
         window.set_interval_with_callback_and_timeout_and_arguments_0(
             time_listener.as_ref().unchecked_ref(),
-            5,
+            7,
         )?;
         time_listener.forget();
     }
