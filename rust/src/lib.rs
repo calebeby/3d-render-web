@@ -16,7 +16,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::plane::Plane;
-use crate::solver::{MetaMoveSolver, ScrambleSolver, Solver};
+use crate::solver::{FullSearchSolver, MetaMoveSolver, ScrambleSolver, Solver};
 use crate::twisty_puzzle::TwistyPuzzle;
 use crate::vector3d::Vector3D;
 use polyhedron::Face;
@@ -124,11 +124,11 @@ fn init() -> Result<(), JsValue> {
     let canvas = Rc::new(canvas);
     let canvas_ctx = Rc::new(canvas_ctx);
 
-    let puzzle = Rc::new(puzzles::pentultimate());
+    let puzzle = Rc::new(puzzles::pyraminx());
 
-    type S = MetaMoveSolver;
+    type S = FullSearchSolver;
     let puzzle_state = puzzle.get_initial_state();
-    let solver_opts: <S as ScrambleSolver>::Opts = ();
+    let solver_opts: <S as ScrambleSolver>::Opts = solver::FullSearchSolverOpts { depth: 11 };
 
     let state = Rc::new(RefCell::new(State::<S> {
         solver: Solver::new(puzzle.clone(), solver_opts),
