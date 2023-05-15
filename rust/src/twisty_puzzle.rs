@@ -462,7 +462,7 @@ impl TwistyPuzzle {
             }
         }
 
-        let mut face_piece_types: Vec<PieceType> = piece_type_faces
+        let face_piece_types = piece_type_faces
             .into_iter()
             .filter_map(|face_indices| {
                 if face_indices.is_empty() {
@@ -475,8 +475,6 @@ impl TwistyPuzzle {
                 Some(PieceType { face_mask: faces })
             })
             .collect();
-        // Force deterministic sorting
-        face_piece_types.sort_by(|a, b| a.face_mask().cmp(b.face_mask()).reverse());
 
         Self {
             faces,
@@ -555,7 +553,6 @@ impl TwistyPuzzle {
     }
 
     // TODO: implement
-
     pub fn get_num_unoriented_pieces_of_type(
         &self,
         puzzle_state: &PuzzleState,

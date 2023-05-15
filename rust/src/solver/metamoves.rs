@@ -396,11 +396,7 @@ where
         },
     );
 
-    let mut vec: Vec<_> = best_metamoves.into_values().collect();
-    // Sort so that the order is deterministic
-    // (hashmap -> vec conversion doesn't maintain any order)
-    vec.sort();
-    vec
+    best_metamoves.into_values().collect()
 }
 
 pub fn combine_metamoves<Filter>(

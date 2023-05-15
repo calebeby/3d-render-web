@@ -64,30 +64,13 @@ impl SolvePhase {
         target_piece_type: &PieceType,
         preserve_piece_types: &[&PieceType],
         solve_parity: bool,
-    ) -> Option<Self> {
-        let puzzle = Rc::clone(&base_metamoves[0].puzzle);
-        console_log!(
-            "puzzle face types {:#?}",
-            puzzle
-                .piece_types
-                .iter()
-                .map(|pt| pt.face_mask().iter().filter(|&&fm| fm).count())
-                .collect::<Vec<_>>()
-        );
+    ) -> Self {
         let subset: Vec<MetaMove> = base_metamoves
             .iter()
             .filter(|mm| metamove_preserves(mm, preserve_piece_types))
             .cloned()
             .collect();
-        if subset.len() < base_metamoves.len() && !subset.is_empty() {
-            console_log!("found shortcut");
-            return SolvePhase::new(
-                &subset,
-                target_piece_type,
-                preserve_piece_types,
-                solve_parity,
-            );
-        }
+        if subset.len() < base_metamoves.len() {}
         console_log!("Build trie");
         let mut trie = BijectionTrie::new();
 
@@ -103,20 +86,12 @@ impl SolvePhase {
         let mut parity_flipper: Option<MetaMove> = None;
         let target_piece_types = [target_piece_type];
         for initial in base_metamoves {
-            console_log!("initial {initial:#?}");
-            // console_log!("trie size: {}", trie.len());
-            // console_log!(
-            //     "matches: {:#?}",
-            //     trie.find_most_similar(&initial.face_map)
-            //         .collect::<Vec<_>>()
-            // );
             let combined = trie
                 .find_most_similar(&initial.face_map.mask(target_piece_type.face_mask()))
                 .find_map(|(differences, most_similar)| {
                     if differences == 0 {
                         return None;
                     }
-                    console_log!("most similar {most_similar:#?}");
                     let combined = initial.apply(&most_similar.invert());
                     if metamove_preserves(&combined, preserve_piece_types)
                         && combined.get_num_affected_pieces_of_types(&target_piece_types) > 0
@@ -162,13 +137,13 @@ impl SolvePhase {
             }
         }
 
-        Some(SolvePhase {
-            puzzle,
-            three_cycle: three_cycle?,
+        SolvePhase {
+            puzzle: Rc::clone(&base_metamoves[0].puzzle),
+            three_cycle: three_cycle.unwrap(),
             parity_flipper,
             target_piece_type: target_piece_type.clone(),
             preserve_piece_types: preserve_piece_types.iter().cloned().cloned().collect(),
-        })
+        }
     }
 
     fn next(&self, state: &PuzzleState) -> MetaMove {
@@ -237,18 +212,16 @@ impl ScrambleSolver for MetaMovePhasedSolver {
     type Opts = ();
 
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
-        let edges = &puzzle.piece_types[0];
-        let corners = &puzzle.piece_types[1];
+        let edges = &puzzle.piece_types[1];
+        let corners = &puzzle.piece_types[2];
 
         // let turn_num_affected_pieces =
         //     MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]).num_affected_pieces;
         console_log!("Initial traverse");
         let metamoves = discover_metamoves(Rc::clone(&puzzle), |_mm| true, 4);
-        // TODO: delete
-        // SolvePhase::new(&metamoves, corners, &[edges], false);
         let solve_phases = vec![
-            SolvePhase::new(&metamoves, corners, &[], true).unwrap(),
-            SolvePhase::new(&metamoves, edges, &[corners], false).unwrap(),
+            SolvePhase::new(&metamoves, corners, &[], true),
+            SolvePhase::new(&metamoves, edges, &[corners], false),
         ];
         // console_log!("Discovering metamoves affecting edges but not corners");
         // discover_three_cycle(&metamoves, edges, &[corners]);
@@ -415,8 +388,7 @@ mod tests {
         // 3x3 solution length: 260 turns
         // avg 3x3 solution length: 384.6 turns, (30 / 50)
         for _ in 0..num_scrambles {
-            // let scrambled_state = puzzle.scramble(&puzzle.get_initial_state(), 20, &mut rng);
-            let scrambled_state = puzzle.get_initial_state();
+            let scrambled_state = puzzle.scramble(&puzzle.get_initial_state(), 20, &mut rng);
             let solution: Vec<_> =
                 MetaMovePhasedSolver::new(Rc::clone(&puzzle), scrambled_state.clone(), ())
                     .collect();
