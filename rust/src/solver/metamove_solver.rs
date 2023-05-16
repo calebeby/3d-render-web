@@ -44,12 +44,15 @@ impl ScrambleSolver for MetaMoveSolver {
     fn new(puzzle: Rc<TwistyPuzzle>, initial_state: PuzzleState, _opts: Self::Opts) -> Self {
         // let max_discover_metamoves_depth =
         //     (2_000_000f64.ln() / (puzzle.turns.len() as f64).ln()) as usize;
+        // For now using a hardcoded tree depth,
+        // but in the future might switch to dynamic depth based on puzzle complexity
         let max_discover_metamoves_depth = 5;
+        // Count the number of pieces affected by an individual turn
         let turn_num_affected_pieces =
             MetaMove::new_infer_face_map(Rc::clone(&puzzle), vec![0]).num_affected_pieces;
+        // Discover sets of moves that affect fewer pieces than an individual turn
         let metamoves = discover_metamoves(
             Rc::clone(&puzzle),
-            // |_mm| true,
             |mm| mm.num_affected_pieces < turn_num_affected_pieces,
             max_discover_metamoves_depth,
         );
@@ -62,6 +65,7 @@ impl ScrambleSolver for MetaMoveSolver {
             best.num_affected_pieces
         );
 
+        // Smoosh together pairs of sets of moves
         let metamoves: Vec<_> = combine_metamoves(Rc::clone(&puzzle), |_mm| true, &metamoves, 2);
         console_log!("num metamoves: {}", metamoves.len());
         let best = metamoves.iter().min().unwrap();
@@ -71,17 +75,19 @@ impl ScrambleSolver for MetaMoveSolver {
             best.num_affected_pieces
         );
 
-        console_log!("1 all mm {}", metamoves.len());
+        // Take out metamoves that have the same effect as others (keep ones with fewest # moves)
         let metamoves = filter_duplicates(metamoves);
-        console_log!("1 reduced mm {}", metamoves.len());
 
         let metamoves: Vec<_> = metamoves
             .into_iter()
             .flat_map(|mm| {
+                // Repeat each metamove multiple times so that some of the face-cycles within the
+                // metamove cancel out
                 mm.discover_repeat_metamoves()
                     .into_iter()
                     .chain(std::iter::once(mm))
             })
+            // Filter out metamoves based on how many pieces they affect
             .filter(|mm| mm.num_affected_pieces <= 3)
             .collect();
 
@@ -108,6 +114,8 @@ impl ScrambleSolver for MetaMoveSolver {
 
         Self {
             // depth: (500_000f64.ln() / (metamoves.len() as f64).ln()) as usize,
+            // For now, using a static depth, but in the future, consider doing a dynamic depth
+            // based on the number of metamoves available at this point
             depth: 2,
             phase: SolvePhase::Search,
             metamoves,
@@ -126,7 +134,6 @@ impl Iterator for MetaMoveSolver {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // console::log_1(&self.depth.into());
         if !self.buffered_turns.is_empty() {
             let next_turn = self.buffered_turns.pop_front().unwrap();
             self.state = self
@@ -136,7 +143,6 @@ impl Iterator for MetaMoveSolver {
         }
 
         // First phase: do a shallow search to make it more solved
-
         if self.phase == SolvePhase::Search {
             let mut best_metamove = MetaMove::empty(Rc::clone(&self.puzzle));
             let mut best_score = self.puzzle.get_num_solved_pieces(&self.state);
@@ -159,7 +165,6 @@ impl Iterator for MetaMoveSolver {
                     &individual_turns_metamoves,
                     depth,
                     MetaMove::empty(Rc::clone(&self.puzzle)),
-                    // TODO: combining the empty metamove with another takes time, would it be faster to skip it somehow?
                     |previous_metamove: &MetaMove, new_metamove: &MetaMove| {
                         previous_metamove.apply(new_metamove)
                     },
@@ -194,16 +199,12 @@ impl Iterator for MetaMoveSolver {
             self.phase = SolvePhase::Metamoves;
         }
 
+        // Second phase: Use metamoves to finish solving
+
         let options = self.metamoves.clone();
 
         let best_metamove =
             find_best_metamove(Rc::clone(&self.puzzle), &self.state, &options, self.depth);
-        // let mut best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth);
-        // if best_metamove.turns.is_empty() {
-        //     best_metamove = find_best_metamove(&self.puzzle, &self.state, &options, self.depth + 1);
-        // }
-
-        // console_log!("applying metamoves {} turns", best_metamove.turns.len());
         let &first_turn = best_metamove.turns.first()?;
         self.state = self
             .puzzle
@@ -231,7 +232,6 @@ fn find_best_metamove(
         metamoves,
         depth,
         MetaMove::empty(Rc::clone(&puzzle)),
-        // TODO: combining the empty metamove with another takes time, would it be faster to skip it somehow?
         |previous_metamove: &MetaMove, new_metamove: &MetaMove| {
             previous_metamove.apply(new_metamove)
         },
@@ -241,7 +241,8 @@ fn find_best_metamove(
             if next_state_score > best_score {
                 best_metamove = mm.clone();
                 best_score = next_state_score;
-                // Stop once we find _anything_ better, not the best one
+                // Uncomment the following line to stop once we find _anything_ better,
+                // not necessarily the best one
                 // return TraverseResult::Break;
             }
             if next_state_score == puzzle.get_num_pieces() {
